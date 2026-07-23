@@ -44,7 +44,11 @@ def fetch_bin(token: str, region_spec: dict, speed_bin: str | None) -> list[dict
         "filters[0]": TRACK_VESSEL_FILTER,
     }
     if speed_bin:
-        params["filters[1]"] = f'speed in ("{speed_bin}")'
+        # Both conditions in ONE filter string: separate filters[N] params are
+        # silently ignored by the API (verified: identical hours in all bins).
+        params["filters[0]"] = (
+            f'{TRACK_VESSEL_FILTER} AND speed in ("{speed_bin}")'
+        )
     return _report_request(token, params, region_spec)
 
 
@@ -126,7 +130,21 @@ def main() -> None:
     )
     bin_cols = [c for c in profile.columns if c in SPEED_BINS + ["unbinned"]]
     profile["total_hours"] = profile[bin_cols].sum(axis=1)
-    profile = profile.sort_values("total_hours", ascending=False)
+    # IMO-registered ships first (the study universe), then by activity
+    profile["has_imo"] = profile["imo"].notna()
+    profile = profile.sort_values(
+        ["has_imo", "total_hours"], ascending=[False, False]
+    ).drop(columns="has_imo")
+
+    # Sanity check: if every vessel has identical hours across bins, the
+    # speed filter was ignored -- do not trust the bin split.
+    if len(bin_cols) > 1:
+        top = profile[bin_cols].head(20)
+        if (top.nunique(axis=1) == 1).all():
+            print(
+                "\nWARNING: identical hours in every speed bin -- the speed "
+                "filter appears to be IGNORED by the API. Bin data invalid."
+            )
 
     # -- 3. Vessels API identity for the most active vessels --------------
     top_mmsi = (
