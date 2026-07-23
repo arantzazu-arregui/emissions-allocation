@@ -29,11 +29,16 @@ The token is read from the `GFW_TOKEN` environment variable only — never commi
 
 ## Usage
 
+The pipeline has two steps — fetch (REST API → Parquet) and analyze (SQL via DuckDB):
+
 ```powershell
-python gfw_presence_sample.py
+python fetch_presence.py      # pulls grid cells per region & vessel class -> data/raw/*.parquet
+python analyze_presence.py    # runs SQL queries -> data/out/*.csv + printed tables
 ```
 
-Pulls a one-month sample of vessel presence for a test region (English Channel / southern North Sea), prints presence hours by vessel type and by flag state, and writes `presence_hours_by_flag.csv`.
+Configure regions, date range, and vessel classes at the top of `fetch_presence.py`. Analysis queries live as plain SQL in `analyze_presence.py` — add new ones to the `QUERIES` dict.
+
+Current queries: flag-state shares of presence hours, vessel class composition, flag × class matrix, and region totals (baseline for EEZ-based allocation comparisons).
 
 ## Attribution
 
