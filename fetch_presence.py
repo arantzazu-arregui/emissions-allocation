@@ -58,6 +58,29 @@ REGIONS = {
     # "nld_eez": {"eez": 5696},   # example: enable after looking up the id
 }
 
+# Regions for per-vessel "pseudo-track" pulls: group-by VESSEL_ID, DAILY,
+# HIGH (0.01 degree) resolution -> one record per vessel per day per grid
+# cell. No speed field (GFW aggregates don't expose it); daily time step.
+# Keep these regions small -- HIGH resolution over large areas gets big fast.
+TRACK_REGIONS = {
+    # US waters pilot: LA / Long Beach port approaches (busiest US complex)
+    "us_socal": {
+        "geojson": {
+            "type": "Polygon",
+            "coordinates": [[
+                [-121.0, 32.0],
+                [-117.0, 32.0],
+                [-117.0, 35.0],
+                [-121.0, 35.0],
+                [-121.0, 32.0],
+            ]],
+        }
+    },
+}
+
+# Single combined filter for track pulls (one request per region).
+TRACK_VESSEL_FILTER = 'vessel_type in ("cargo","carrier","tanker","passenger")'
+
 # --------------------------------------------------------------------------
 
 
@@ -71,21 +94,8 @@ def get_token() -> str:
     return token
 
 
-def fetch_cells(
-    token: str, region_spec: dict, vessel_class: str | None
-) -> list[dict]:
-    """One 4Wings report request; returns raw grid-cell records."""
-    params = {
-        "spatial-resolution": "LOW",       # 0.1 degree grid
-        "temporal-resolution": "ENTIRE",   # aggregate over the whole date range
-        "group-by": "FLAG",                # presence supports MMSI/VESSEL_ID/FLAG
-        "datasets[0]": "public-global-presence:latest",
-        "date-range": DATE_RANGE,
-        "format": "JSON",
-    }
-    if vessel_class:
-        params["filters[0]"] = f'vessel_type in ("{vessel_class}")'
-
+def _report_request(token: str, params: dict, region_spec: dict) -> list[dict]:
+    """POST one 4Wings report request; return raw grid-cell records."""
     if "geojson" in region_spec:
         body = {"geojson": region_spec["geojson"]}
     else:
@@ -107,6 +117,37 @@ def fetch_cells(
             if cells:
                 records.extend(cells)
     return records
+
+
+def fetch_cells(
+    token: str, region_spec: dict, vessel_class: str | None
+) -> list[dict]:
+    """Aggregated presence: hours by FLAG over the whole period, 0.1 deg grid."""
+    params = {
+        "spatial-resolution": "LOW",       # 0.1 degree grid
+        "temporal-resolution": "ENTIRE",   # aggregate over the whole date range
+        "group-by": "FLAG",                # presence supports MMSI/VESSEL_ID/FLAG
+        "datasets[0]": "public-global-presence:latest",
+        "date-range": DATE_RANGE,
+        "format": "JSON",
+    }
+    if vessel_class:
+        params["filters[0]"] = f'vessel_type in ("{vessel_class}")'
+    return _report_request(token, params, region_spec)
+
+
+def fetch_track_cells(token: str, region_spec: dict) -> list[dict]:
+    """Per-vessel pseudo-tracks: hours by VESSEL_ID per day, 0.01 deg grid."""
+    params = {
+        "spatial-resolution": "HIGH",      # 0.01 degree grid
+        "temporal-resolution": "DAILY",    # one record per vessel-day-cell
+        "group-by": "VESSEL_ID",
+        "datasets[0]": "public-global-presence:latest",
+        "date-range": DATE_RANGE,
+        "format": "JSON",
+        "filters[0]": TRACK_VESSEL_FILTER,
+    }
+    return _report_request(token, params, region_spec)
 
 
 def main() -> None:
@@ -140,6 +181,25 @@ def main() -> None:
 
         out = RAW_DIR / f"presence_{region_name}_{DATE_RANGE.replace(',', '_')}.parquet"
         pd.concat(frames, ignore_index=True).to_parquet(out, index=False)
+        print(f"Wrote {out}\n")
+
+    # -- Per-vessel pseudo-track pulls ------------------------------------
+    for region_name, region_spec in TRACK_REGIONS.items():
+        print(f"Fetching tracks {region_name} / {DATE_RANGE} ...", end=" ")
+        try:
+            cells = fetch_track_cells(token, region_spec)
+        except RuntimeError as exc:
+            print(f"SKIPPED ({exc})")
+            continue
+        print(f"{len(cells)} vessel-day-cell records")
+        if not cells:
+            continue
+        df = pd.DataFrame(cells)
+        df["region"] = region_name
+        df["date_range"] = DATE_RANGE
+        df["fetched_at"] = fetched_at
+        out = RAW_DIR / f"tracks_{region_name}_{DATE_RANGE.replace(',', '_')}.parquet"
+        df.to_parquet(out, index=False)
         print(f"Wrote {out}\n")
 
     print("Done. Next: python analyze_presence.py")
