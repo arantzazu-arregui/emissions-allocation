@@ -12,9 +12,15 @@ Usage:
 Output: printed tables + CSVs in data/out/
 """
 
+import re
 from pathlib import Path
 
 import duckdb
+
+
+def _snake(name: str) -> str:
+    """vesselId -> vessel_id, exitTimestamp -> exit_timestamp."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower()
 
 RAW_GLOB = "data/raw/presence_*.parquet"
 TRACKS_GLOB = "data/raw/tracks_*.parquet"
@@ -155,11 +161,22 @@ def main() -> None:
     run_queries(con, QUERIES)
 
     if list(Path().glob(TRACKS_GLOB)):
+        # The API returns camelCase columns (vesselId, entryTimestamp, ...).
+        # Build a view that renames everything to snake_case so SQL stays tidy.
+        raw_cols = [
+            r[0]
+            for r in con.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{TRACKS_GLOB}')"
+            ).fetchall()
+        ]
+        select = ", ".join(f'"{c}" AS {_snake(c)}' for c in raw_cols)
         con.execute(
-            f"CREATE VIEW track_cells AS SELECT * FROM read_parquet('{TRACKS_GLOB}')"
+            f"CREATE VIEW track_cells AS SELECT {select} "
+            f"FROM read_parquet('{TRACKS_GLOB}')"
         )
         nt = con.execute("SELECT COUNT(*) FROM track_cells").fetchone()[0]
-        print(f"Loaded {nt:,} vessel-day-cell records from {TRACKS_GLOB}\n")
+        print(f"Loaded {nt:,} vessel-day-cell records from {TRACKS_GLOB}")
+        print(f"Columns: {[_snake(c) for c in raw_cols]}\n")
         run_queries(con, TRACK_QUERIES)
     else:
         print(f"No track files ({TRACKS_GLOB}) -- skipping track queries.")
