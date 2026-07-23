@@ -80,6 +80,8 @@ def run_report(token: str, group_by: str, filters: str | None = None) -> list[di
         json={"geojson": TEST_REGION_GEOJSON},
         timeout=120,
     )
+    if not resp.ok:
+        print(f"\nAPI error {resp.status_code}. Response body:\n{resp.text}\n")
     resp.raise_for_status()
     payload = resp.json()
 
@@ -95,20 +97,22 @@ def run_report(token: str, group_by: str, filters: str | None = None) -> list[di
 def main() -> None:
     token = get_token()
 
-    # -- Query 1: hours by vessel type (no filter) -- shows what's in the region
-    print(f"Querying vessel presence by VESSEL_TYPE, {DATE_RANGE} ...")
-    by_type = run_report(token, group_by="VESSEL_TYPE")
-    if by_type:
-        df_type = (
-            pd.DataFrame(by_type)
-            .groupby("vessel_type", dropna=False)["hours"]
+    # -- Query 1: hours by flag, ALL vessel types (baseline)
+    # Note: the presence dataset only supports group-by MMSI, VESSEL_ID, or FLAG.
+    # Vessel class can still be used as a *filter* (see query 2).
+    print(f"Querying vessel presence by FLAG, all vessel types, {DATE_RANGE} ...")
+    all_vessels = run_report(token, group_by="FLAG")
+    if all_vessels:
+        df_all = (
+            pd.DataFrame(all_vessels)
+            .groupby("flag", dropna=False)["hours"]
             .sum()
             .sort_values(ascending=False)
         )
-        print("\nPresence hours by vessel type (test region):")
-        print(df_type.to_string())
+        print(f"\nTop 10 flags, all vessel types ({df_all.sum():,.0f} total hours):")
+        print(df_all.head(10).to_string())
     else:
-        print("No records returned for vessel type query.")
+        print("No records returned for all-vessels query.")
 
     # -- Query 2: hours by flag state, commercial shipping only
     print(f"\nQuerying vessel presence by FLAG ({VESSEL_TYPE_FILTER}) ...")
