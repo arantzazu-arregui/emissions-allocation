@@ -60,13 +60,57 @@ run:
   # the values raises MissingParameter rather than substituting a default.
   power_estimates: [A, B]
 
-  # §4.5. Reported both ways regardless; this selects the headline figure.
-  coverage_correction: true
+  # --- §1.2 assertion (c): presence-pull integrity ---------------------------
+  #
+  # Assertion (c) exists to catch a PARTIAL PULL -- the API returning HTTP 200 with
+  # only part of a year, from a timeout mid-response or a filter that accidentally
+  # narrowed. An hours threshold alone cannot do that job, because it cannot tell
+  # "the API returned half the year" from "the vessel was laid up half the year".
+  # Both look like 50%.
+  #
+  # Measured coverage for vessel A varies far more than METHODOLOGY §1.7 assumes,
+  # which quotes only 2024:
+  #   2017 82.0% | 2018 71.2% | 2019 36.1% | 2020 72.7%
+  #   2021 93.2% | 2022 97.0% | 2023 99.8% | 2024 99.98%
+  # so a single strict floor rejects six of eight legitimate years.
+  #
+  # Three checks replace it. See activity.classify_gaps.
 
-  # §1.2 assertion (c): reject a presence pull whose observed hours fall below
-  # this fraction of elapsed hours. Vessel A measures 0.9998 for 2024.
-  # This is a data-integrity floor, not a physical parameter.
-  hour_coverage_min: 0.95
+  # Hard floor. A year returning almost nothing is broken, not thin. Raises.
+  hour_coverage_floor: 0.10
+
+  # Warning threshold. Flags the year low-confidence and records the figure;
+  # does not stop the run.
+  hour_coverage_warn: 0.95
+
+  # Structural check, and the strong one. Any contiguous presence gap at or above
+  # this length must contain ZERO port calls, or the presence pull is genuinely
+  # broken and the loader raises.
+  #
+  # This is a cross-ENDPOINT consistency test, which is what gives it force:
+  # presence comes from 4Wings filtered on shipname, port visits from /v3/events
+  # keyed on vesselId. Two different query paths. If one says the vessel was absent
+  # while the other says it called at a port, something is wrong with the pull.
+  #
+  # It is also what diagnosed vessel A's 2019-06-10 -> 2020-03-18 absence as
+  # genuine: 282 contiguous days with zero presence hours AND zero port calls, both
+  # datasets independently agreeing the hull was out of service.
+  inactivity_gap_days: 7
+
+  # --- §4.5 coverage correction ---------------------------------------------
+  # Gaps are classified before any correction is applied.
+  #
+  # Scattered reception gaps are correctable: the vessel was trading and hours were
+  # missed, so E / coverage recovers them. 2017 has 615 such runs, none over 7 days.
+  #
+  # Contiguous absences are NOT correctable. Dividing 2019 by its raw 36.1%
+  # coverage would multiply emissions by 2.77x for a ship that was not sailing,
+  # fabricating roughly nine months of phantom voyages. Those hours are excluded
+  # from the denominator instead, and carry no emissions.
+  #
+  # This is a documented departure from METHODOLOGY §4.5, which treats the
+  # correction as uniform and negligible on the strength of 2024 alone.
+  coverage_correction: true
 
 paths:
   raw: data/raw
@@ -86,11 +130,25 @@ spatial:
   # what separates Anchored from Slow transit, and their auxiliary loads differ
   # (1,800 vs 2,050 kW).
   #
-  # Download "Marine and Land Zones v4" (2024-10-10) from
+  # CHOSEN: Marine Regions "Marine and Land Zones v4" (2024-10-10), from
   #   https://www.marineregions.org/downloads.php
-  # drop the zip in data/external/marineregions/, and uncomment:
+  # Download it, drop the zip in data/external/marineregions/, and uncomment:
   #
   # coastline: data/external/marineregions/World_Marine_and_Land_Zones_v4_20241010_gpkg.zip
+  #
+  # ALTERNATIVE, and arguably the more faithful one: the IMO Fourth GHG Study
+  # measures these distances against "the world's coastal lines, freely available
+  # from Natural Earth data (shapefiles)" -- stated on the Table 16 page itself
+  # (printed p.66). Using Natural Earth would reproduce the source study's own
+  # method rather than approximate it, and the download is far smaller.
+  #
+  # Marine and Land Zones was chosen instead because it is already the project's
+  # spatial vocabulary (same publisher, same CRS and coding scheme as EEZ v12 and
+  # High Seas v2), which keeps every layer joinable without a second convention.
+  # The two differ mainly in coastline generalisation, which matters at the 1 nm
+  # threshold and much less at 5 nm. Swapping is a one-line change here plus a
+  # rerun of §4; 23_distance_to_coast.sql reads whatever layer this key names.
+  # Worth testing both if the berth/anchored split turns out to drive the result.
 
 validation:
   # §8.2. THETIS-MRV is EU-scope and is used ONLY to validate, never as an input.
@@ -106,3 +164,21 @@ validation:
       port_calls_all_confidence: "4"
       presence_records_2024: 8782
       elapsed_hours_2024: 8784
+      # Observed hours per year, measured 2026-08-16. A change here means the GFW
+      # presence dataset moved and downstream figures need rechecking.
+      observed_hours_by_year:
+        2017: 7185
+        2018: 6233
+        2019: 3159
+        2020: 6388
+        2021: 8163
+        2022: 8498
+        2023: 8743
+        2024: 8782
+      # The hull was out of service for this window: zero presence hours and zero
+      # port calls, from two independent endpoints.
+      inactivity_windows:
+        - start: 2019-06-10
+          end: 2020-03-18
+          note: "282 contiguous days, no presence and no port calls"
+

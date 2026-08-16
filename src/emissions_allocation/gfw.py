@@ -148,7 +148,8 @@ def assert_presence(
     expected_imo: str,
     period_start: datetime,
     period_end: datetime,
-    coverage_min: float = 0.95,
+    coverage_floor: float = 0.10,
+    coverage_warn: float = 0.95,
     context: str = "",
 ) -> list[dict[str, Any]]:
     """Apply the three mandatory assertions and return the IMO-filtered records.
@@ -160,15 +161,26 @@ def assert_presence(
     (b) **Exactly one distinct IMO, and it is the expected one.** ``shipname`` is
         not unique across the fleet, so a name that matches two hulls silently
         doubles the emissions.
-    (c) **Observed hours within tolerance of elapsed hours.** Catches a partial
-        pull that returned successfully.
+    (c) **Observed hours plausible against elapsed hours.** Catches a partial pull
+        that returned successfully.
+
+    Note what (c) can and cannot do. It exists to catch a truncated response, but an
+    hours ratio cannot distinguish "the API returned half the year" from "the vessel
+    was laid up half the year" -- both look like 50%. Real coverage for vessel A
+    ranges from 36% to 99.98% across the study period, so a strict floor rejects
+    legitimate years. The floor here is therefore set low enough to catch a broken
+    pull only, a separate warning threshold flags thin years without stopping, and
+    the decisive structural test lives in
+    :func:`emissions_allocation.activity.assert_gaps_have_no_port_calls`, which
+    cross-checks presence against an independent endpoint.
 
     Args:
         records: Raw records from :func:`extract_report_records`.
         expected_imo: The IMO this pull was supposed to be about.
         period_start: Start of the requested window.
         period_end: End of the requested window, exclusive.
-        coverage_min: Minimum observed/elapsed hour ratio.
+        coverage_floor: Below this, the pull is treated as broken and raises.
+        coverage_warn: Below this, the year is logged as low-confidence.
         context: Free text added to failure messages.
 
     Returns:
@@ -210,13 +222,20 @@ def assert_presence(
     observed = sum(float(r.get("hours") or 0) for r in matching)
     elapsed = (period_end - period_start).total_seconds() / 3600.0
     coverage = observed / elapsed if elapsed else 0.0
-    if coverage < coverage_min:
+    if coverage < coverage_floor:
         raise PresenceAssertionError(
             f"presence pull for IMO {expected_imo} observed {observed:,.0f} hours of "
             f"{elapsed:,.0f} elapsed = {coverage:.2%}{where}, below the "
-            f"{coverage_min:.0%} floor.\n"
-            "  Either the pull is partial, or the vessel genuinely went dark. "
+            f"{coverage_floor:.0%} hard floor.\n"
+            "  A year returning almost nothing is a broken pull, not thin reception. "
             "Investigate before using it -- do not lower the floor to make it pass."
+        )
+    if coverage < coverage_warn:
+        log.warning(
+            "IMO %s%s: coverage %.2f%% is below the %.0f%% warning threshold. "
+            "Classify the gaps before applying any coverage correction -- a "
+            "contiguous absence must not be scaled up as if it were missed reception.",
+            expected_imo, where, coverage * 100, coverage_warn * 100,
         )
     if coverage > 1.01:
         raise PresenceAssertionError(

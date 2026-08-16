@@ -77,7 +77,8 @@ def stage_check(cfg, args) -> None:
         start, end = year_bounds(year)
         kept = assert_presence(
             records, vessel.imo, start, end,
-            coverage_min=cfg.run["hour_coverage_min"],
+            coverage_floor=cfg.run["hour_coverage_floor"],
+            coverage_warn=cfg.run["hour_coverage_warn"],
             context=f"{year} world extent",
         )
         observed = sum(float(r.get("hours") or 0) for r in kept)
@@ -97,15 +98,136 @@ def stage_check(cfg, args) -> None:
                 )
 
 
+def stage_activity(cfg, args) -> None:
+    """§1 -- presence, port visits, speed derivation and smoothing.
+
+    The 8-year presence pull is ~44 s per year per vessel and is cached, so the
+    first run costs about six minutes a hull and every rerun is free.
+    """
+    from datetime import datetime, timedelta
+
+    import pandas as pd
+
+    from emissions_allocation import activity
+
+    client = GFWClient.from_env(cache_dir=cfg.path("raw") / "gfw_cache")
+    interim = cfg.path("interim")
+    start = datetime.combine(cfg.start_date, datetime.min.time())
+    end = datetime.combine(cfg.end_date, datetime.min.time()) + timedelta(days=1)
+
+    with Database() as db:
+        for vessel in cfg:
+            print(f"\nIMO {vessel.imo} ({vessel.label}) -- {', '.join(vessel.shipnames)}")
+
+            print("  presence ...", flush=True)
+            presence = activity.load_presence(client, cfg, vessel)
+            print(f"    {len(presence):,} observed vessel-hours")
+
+            speeds = activity.derive_speed(presence)
+            spine = activity.build_spine(speeds, start, end, vessel.imo)
+
+            print("  port visits ...", flush=True)
+            port_calls = activity.load_port_visits(client, cfg, vessel)
+            confidences = sorted(set(port_calls["confidence"].dropna()))
+            print(f"    {len(port_calls):,} port calls, confidence {confidences}, "
+                  f"{port_calls['port_iso3'].nunique()} countries")
+
+            # Classify gaps BEFORE any coverage correction. A contiguous absence
+            # must not be scaled up as if it were missed reception.
+            spine, inactivity = activity.classify_gaps(
+                spine, port_calls, cfg.run["inactivity_gap_days"]
+            )
+            filled = int(spine["is_interpolated"].sum())
+            inactive = int(spine["is_inactive"].sum())
+            print(f"    spine {len(spine):,} hours, {filled:,} unobserved "
+                  f"({filled / len(spine):.1%}), {inactive:,} of those out of service")
+            if not inactivity.empty:
+                print("  out-of-service windows (no presence AND no port calls):")
+                for gap in inactivity.itertuples():
+                    print(f"    {gap.start_ts:%Y-%m-%d} -> {gap.end_ts:%Y-%m-%d}  "
+                          f"{int(gap.hours):,} h ({int(gap.hours) // 24} d)")
+
+            # Smoothing runs only now, so a centred window never straddles an
+            # out-of-service boundary.
+            spine = activity.add_smoothed_speeds(spine, cfg.run["smoothing_windows"])
+
+            print("  v^3 bias by smoothing window:")
+            for window in cfg.run["smoothing_windows"]:
+                bias = activity.cubic_bias(spine.loc[~spine["is_inactive"], f"sog_w{window}"])
+                print(f"    w={window}: {bias:.3f}x")
+
+            db.register_frame("vessel_hour", spine)
+            db.register_frame("port_call", port_calls)
+            db.table_from("voyage_leg", "12_voyage_leg", eu27=list(activity.EU27))
+
+            legs = db.query("SELECT * FROM voyage_leg").df()
+            eu_eu = int(legs["is_eu_eu"].sum())
+            print(f"    {len(legs):,} voyage legs, {eu_eu} EU->EU, "
+                  f"{int(legs['is_international'].sum())} international")
+
+            coverage = activity.coverage_by_year(spine)
+            print("  coverage by year (raw = of elapsed; active = of in-service):")
+            for row in coverage.itertuples():
+                flag = "  <- low" if row.coverage_active < cfg.run["hour_coverage_warn"] else ""
+                print(f"    {row.year}: observed {row.observed_hours:,} | "
+                      f"raw {row.coverage_raw:6.2%} | active {row.coverage_active:6.2%}"
+                      f"{flag}")
+
+            _check_expectations(cfg, vessel, port_calls, coverage)
+
+            spine.to_parquet(interim / f"vessel_hour_{vessel.imo}.parquet", index=False)
+            port_calls.to_parquet(interim / f"port_call_{vessel.imo}.parquet", index=False)
+            legs.to_parquet(interim / f"voyage_leg_{vessel.imo}.parquet", index=False)
+            coverage.to_parquet(interim / f"coverage_{vessel.imo}.parquet", index=False)
+            print(f"  wrote 4 tables to {interim}")
+
+
+def _check_expectations(cfg, vessel, port_calls, coverage) -> None:
+    """Assert against the figures captured during investigation.
+
+    A mismatch means something upstream moved, and downstream output should not be
+    trusted until it is understood.
+    """
+    expected = (cfg.validation.get("expected") or {}).get(vessel.imo)
+    if not expected:
+        return
+
+    failures = []
+    if "port_calls_total" in expected and len(port_calls) != expected["port_calls_total"]:
+        failures.append(
+            f"port calls: got {len(port_calls)}, expected {expected['port_calls_total']}"
+        )
+
+    want_confidence = expected.get("port_calls_all_confidence")
+    got_confidence = set(port_calls["confidence"].dropna())
+    if want_confidence and got_confidence != {want_confidence}:
+        failures.append(f"confidences: got {sorted(got_confidence)}, expected [{want_confidence}]")
+
+    by_year = dict(zip(coverage["year"], coverage["observed_hours"]))
+    for year, want in (expected.get("observed_hours_by_year") or {}).items():
+        got = int(by_year.get(int(year), 0))
+        if got != want:
+            failures.append(f"{year} observed hours: got {got:,}, expected {want:,}")
+
+    if failures:
+        raise SystemExit("  VALIDATION FAILED\n    " + "\n    ".join(failures))
+    print("  validated against the captured investigation figures: MATCH")
+
+
 def _not_yet(name: str):
     def run(cfg, args) -> None:
         raise SystemExit(
-            f"stage {name!r} is not yet implemented. Implemented so far: check."
+            f"stage {name!r} is not yet implemented. "
+            "Implemented so far: check, activity."
         )
     return run
 
 
-HANDLERS = {"check": stage_check, **{s: _not_yet(s) for s in STAGES if s != "check"}}
+HANDLERS = {
+    "check": stage_check,
+    "activity": stage_activity,
+    **{s: _not_yet(s) for s in STAGES if s not in ("check", "activity")},
+}
 
 
 def main() -> None:

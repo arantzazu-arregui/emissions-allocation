@@ -152,17 +152,39 @@ def test_records_are_filtered_to_the_expected_imo() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hours_below_tolerance_raise() -> None:
+def test_near_empty_year_raises_on_the_hard_floor() -> None:
+    """A year returning almost nothing is a broken pull, not thin reception."""
     start, end = year_bounds(2024)
-    with pytest.raises(PresenceAssertionError, match="below the"):
-        assert_presence(_hour_records(EXPECTED_IMO, 4000), EXPECTED_IMO, start, end)
+    with pytest.raises(PresenceAssertionError, match="hard floor"):
+        assert_presence(_hour_records(EXPECTED_IMO, 400), EXPECTED_IMO, start, end)
 
 
 def test_failure_message_does_not_invite_lowering_the_floor() -> None:
     start, end = year_bounds(2024)
     with pytest.raises(PresenceAssertionError) as excinfo:
-        assert_presence(_hour_records(EXPECTED_IMO, 4000), EXPECTED_IMO, start, end)
+        assert_presence(_hour_records(EXPECTED_IMO, 400), EXPECTED_IMO, start, end)
     assert "do not lower the floor" in str(excinfo.value)
+
+
+def test_genuinely_thin_year_passes_but_warns(caplog) -> None:
+    """36.1% is vessel A's real 2019 coverage. An hours ratio cannot tell a
+    truncated response from a laid-up vessel, so this must not hard-fail."""
+    start, end = year_bounds(2019)
+    with caplog.at_level("WARNING"):
+        kept = assert_presence(_hour_records(EXPECTED_IMO, 3159), EXPECTED_IMO, start, end)
+    assert len(kept) == 3159
+    assert "below the 95% warning threshold" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "year,observed",
+    [(2017, 7185), (2018, 6233), (2019, 3159), (2020, 6388),
+     (2021, 8163), (2022, 8498), (2023, 8743), (2024, 8782)],
+)
+def test_every_measured_year_survives_the_floor(year: int, observed: int) -> None:
+    """All eight measured years are legitimate and must pass."""
+    start, end = year_bounds(year)
+    assert len(assert_presence(_hour_records(EXPECTED_IMO, observed), EXPECTED_IMO, start, end)) == observed
 
 
 def test_more_hours_than_elapsed_raises() -> None:
