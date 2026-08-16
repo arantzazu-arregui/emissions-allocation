@@ -192,11 +192,26 @@ vessels:
     allocation_keys:
       flag:
         country: HKG
+        # Global Carbon Budget keys its baselines by country NAME, not ISO3, so
+        # each allocation key carries the name to join on. Kept here rather than in
+        # a separate lookup table so that adding a vessel stays a config edit in one
+        # place, and so a hull whose country the GCB does not carry fails loudly
+        # instead of dropping out of the aggregation.
+        #
+        # Hong Kong is the one key whose name depends on the §6.4 treatment:
+        # `separate` keeps it as its own 33.3 Mt CO2 baseline, `folded_into_china`
+        # merges it into China's 12,289 Mt. Selin et al.'s supplementary Table 1
+        # has NO Hong Kong row at all -- 199 countries, aligned to the UNFCCC party
+        # list, with no Taiwan or Macao either -- so the paper folds it into China
+        # and `folded_into_china` is the replication-faithful treatment.
+        gcb_name: Hong Kong
+        gcb_name_folded: China
         source: "Equasis; GFW registryInfo.flag"
         method: observed
         estimated: false
       owner:
         country: CHN
+        gcb_name: China
         company: COSCO ITALY SHIPPING LTD
         company_imo: "4178111"
         address: "C/O COSCO Shipping Lines, Shanghai"
@@ -213,6 +228,7 @@ vessels:
         # flag rather than record owner domicile. NOT USED.
       manager:
         country: CHN
+        gcb_name: China
         company: SHANGHAI OCEAN SHIPPING CO LTD
         company_imo: "5193283"
         source: "Equasis ISM manager"
@@ -220,6 +236,7 @@ vessels:
         estimated: true
       operator:
         country: CHN
+        gcb_name: China
         company: COSCO SHIPPING LINES CO LTD
         company_imo: "1043944"
         source: "Equasis commercial manager"

@@ -289,11 +289,103 @@ def stage_fuel(cfg, args) -> None:
             print(f"  wrote fuel_assignment_{vessel.imo}.parquet")
 
 
+def _load_emissions_year(cfg):
+    """Read the §4 output, or explain precisely why it is not there yet."""
+    import pandas as pd
+
+    path = cfg.path("interim") / "emissions_year.parquet"
+    if not path.exists():
+        raise SystemExit(
+            "§4 has not produced emissions_year.parquet yet.\n"
+            "  §4 is blocked on the coastline layer (OPEN ITEM 3): the Table 16\n"
+            "  operating-mode matrix needs distance-to-coast per vessel-hour.\n"
+            "  Download Marine and Land Zones v4 from marineregions.org/downloads.php,\n"
+            "  put the zip in data/external/marineregions/, and set spatial.coastline\n"
+            "  in config/pilot.yaml. Then: run_pipeline.py --stage emissions"
+        )
+    return pd.read_parquet(path)
+
+
+def stage_baselines(cfg, args) -> None:
+    """§6 -- Global Carbon Budget baselines under each Hong Kong treatment."""
+    from emissions_allocation import baselines
+
+    frame = baselines.build_baselines(cfg)
+    frame.to_parquet(cfg.path("interim") / "baseline.parquet", index=False)
+
+    print(f"{len(frame):,} country-year-treatment baselines, "
+          f"{frame['country'].nunique()} countries, "
+          f"{frame['year'].min()}-{frame['year'].max()}")
+    print("  units converted MtC -> Mt CO2 (x3.664); national columns exclude bunkers")
+
+    print("\n  §6.4 Hong Kong, 2024:")
+    for treatment in cfg.run["hk_treatments"]:
+        sub = frame[(frame["hk_treatment"] == treatment) & (frame["year"] == 2024)]
+        hk = sub[sub["country"] == "Hong Kong"]["mtco2"]
+        cn = sub[sub["country"] == "China"]["mtco2"]
+        hk_txt = f"{hk.iloc[0]:,.1f}" if len(hk) else "folded into China"
+        print(f"    {treatment:20s} Hong Kong {hk_txt:>18s} | China {cn.iloc[0]:>10,.1f} Mt CO2")
+
+    check = baselines.shipping_cross_check(cfg, 2024)
+    print(f"\n  §6.2 cross-check: GCB International Shipping 2024 = "
+          f"{check['mtc']:.2f} MtC = {check['mtco2']:.0f} Mt CO2")
+    print("  (an independent global total to sanity-check a fleet-scale result)")
+
+
+def stage_allocation(cfg, args) -> None:
+    """§5 -- allocate ship-year CO2 to countries under each rule."""
+    from emissions_allocation import allocation as alloc
+
+    print("Allocation keys per vessel (the qualitative result at n=1):")
+    for treatment in cfg.run["hk_treatments"]:
+        print(f"\n  Hong Kong treatment: {treatment}")
+        for row in alloc.summarise_options(cfg, treatment).itertuples():
+            keys = "  ".join(
+                f"{o}={getattr(row, o)}" for o in alloc.ALLOCATION_OPTIONS
+            )
+            verdict = (
+                "DEGENERATE (all options -> one budget)" if row.is_degenerate
+                else f"{row.n_distinct_countries} distinct budgets"
+            )
+            print(f"    IMO {row.imo}: {keys}")
+            print(f"      -> {verdict}")
+
+    emissions = _load_emissions_year(cfg)
+    with Database() as db:
+        result = alloc.allocate(db, cfg, emissions)
+    result.to_parquet(cfg.path("interim") / "allocation.parquet", index=False)
+    print(f"\n{len(result):,} allocation rows written")
+
+
+def stage_impacts(cfg, args) -> None:
+    """§7 -- dE, dE% and rank against national budgets."""
+    import pandas as pd
+
+    from emissions_allocation import baselines, impacts
+
+    interim = cfg.path("interim")
+    allocation = pd.read_parquet(interim / "allocation.parquet")
+    baseline = baselines.build_baselines(cfg)
+
+    with Database() as db:
+        result = impacts.compute_impacts(db, allocation, baseline)
+    result.to_parquet(interim / "impacts.parquet", index=False)
+
+    print(f"{len(result):,} impact rows")
+    print("\n  NOTE ranking and concentration shares are structurally meaningless")
+    print("  at n=1 -- the code path is exercised, not interpreted.")
+
+    spread = impacts.scenario_spread(result)
+    spread.to_parquet(interim / "scenario_spread.parquet", index=False)
+    print(f"\n  scenario spread written ({len(spread):,} rows)")
+
+
 def _not_yet(name: str):
     def run(cfg, args) -> None:
         raise SystemExit(
             f"stage {name!r} is not yet implemented. "
-            "Implemented so far: check, activity, specs, fuel."
+            "Implemented so far: check, activity, specs, fuel, baselines, "
+            "allocation, impacts. §4 emissions is blocked on the coastline layer."
         )
     return run
 
@@ -303,8 +395,11 @@ HANDLERS = {
     "activity": stage_activity,
     "specs": stage_specs,
     "fuel": stage_fuel,
-    **{s: _not_yet(s) for s in STAGES
-       if s not in ("check", "activity", "specs", "fuel")},
+    "baselines": stage_baselines,
+    "allocation": stage_allocation,
+    "impacts": stage_impacts,
+    **{s: _not_yet(s) for s in STAGES if s not in (
+        "check", "activity", "specs", "fuel", "baselines", "allocation", "impacts")},
 }
 
 
