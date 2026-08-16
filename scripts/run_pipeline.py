@@ -214,11 +214,86 @@ def _check_expectations(cfg, vessel, port_calls, coverage) -> None:
     print("  validated against the captured investigation figures: MATCH")
 
 
+def stage_specs(cfg, args) -> None:
+    """§2 -- TEU inversion and the three power/speed estimates."""
+    from emissions_allocation import specs
+
+    for vessel in cfg:
+        print(f"\nIMO {vessel.imo} ({vessel.label})")
+        teu = specs.resolve_teu(vessel, cfg)
+        print(f"  TEU (inverted from beam {vessel.require_spec('beam_m')} m): "
+              f"{teu:,.0f}  [estimated]")
+
+        print("  Cepowski & Chorab DWT relations vs the observed hull:")
+        for name, r in specs.validate_hull_relations(vessel, cfg.defaults).items():
+            print(f"    {name:8s} predicted {r['predicted']:8.1f}  "
+                  f"observed {r['observed']:8.1f}  error {r['error_pct']:+6.1f}%")
+
+        print("  power/speed estimates (no primary -- the spread is the result):")
+        for estimate in specs.build_estimates(vessel, cfg).values():
+            print("    " + estimate.describe())
+
+        print("  NOTE estimate C (sourced installed power and service speed) is "
+              "OPEN ITEM 4 and absent.")
+
+
+def stage_fuel(cfg, args) -> None:
+    """§3 -- ECA point-in-polygon, EU->EU legs, fuel assignment."""
+    import pandas as pd
+
+    from emissions_allocation import activity, fuel
+
+    interim = cfg.path("interim")
+    with Database() as db:
+        n = fuel.register_eca(db, cfg)
+        areas = db.query("SELECT area FROM eca_polygons ORDER BY area").df()["area"].tolist()
+        print(f"ECA polygons: {n}")
+        for a in areas:
+            print(f"  - {a}")
+        print("  (no Mediterranean -- in force May 2025, after the study period)")
+
+        for vessel in cfg:
+            print(f"\nIMO {vessel.imo} ({vessel.label})")
+            fuel.assert_build_year_in_range(vessel, cfg.factors)
+            print(f"  engine {vessel.require_spec('engine_type')}, "
+                  f"high-speed: {fuel.is_high_speed(vessel)}")
+
+            spine = pd.read_parquet(interim / f"vessel_hour_{vessel.imo}.parquet")
+            legs = pd.read_parquet(interim / f"voyage_leg_{vessel.imo}.parquet")
+            db.register_frame("vessel_hour", spine)
+            db.register_frame("voyage_leg", legs)
+
+            print("  point-in-polygon over ECAs ...", flush=True)
+            assignment = fuel.assign_fuel(db, cfg, vessel)
+
+            total = len(assignment)
+            in_eca = int(assignment["in_eca"].sum())
+            eu_eu = int(assignment["is_eu_eu_leg"].sum())
+            print(f"  {total:,} vessel-hours")
+            print(f"    in an ECA:        {in_eca:,} ({in_eca / total:.1%})")
+            print(f"    on an EU->EU leg: {eu_eu:,} ({eu_eu / total:.1%})")
+            print("  fuel split:")
+            for f, n_hours in assignment["fuel_type"].value_counts().items():
+                ef = fuel.emission_factor(cfg.factors, f)
+                print(f"    {f:5s} {n_hours:>7,} h ({n_hours / total:5.1%})  "
+                      f"EF {ef} g CO2/g fuel")
+            by_area = assignment[assignment["in_eca"]]["eca_area"].value_counts()
+            if not by_area.empty:
+                print("  ECA hours by area:")
+                for area, n_hours in by_area.items():
+                    print(f"    {area:34s} {n_hours:>7,} h")
+
+            assignment.to_parquet(
+                interim / f"fuel_assignment_{vessel.imo}.parquet", index=False
+            )
+            print(f"  wrote fuel_assignment_{vessel.imo}.parquet")
+
+
 def _not_yet(name: str):
     def run(cfg, args) -> None:
         raise SystemExit(
             f"stage {name!r} is not yet implemented. "
-            "Implemented so far: check, activity."
+            "Implemented so far: check, activity, specs, fuel."
         )
     return run
 
@@ -226,7 +301,10 @@ def _not_yet(name: str):
 HANDLERS = {
     "check": stage_check,
     "activity": stage_activity,
-    **{s: _not_yet(s) for s in STAGES if s not in ("check", "activity")},
+    "specs": stage_specs,
+    "fuel": stage_fuel,
+    **{s: _not_yet(s) for s in STAGES
+       if s not in ("check", "activity", "specs", "fuel")},
 }
 
 

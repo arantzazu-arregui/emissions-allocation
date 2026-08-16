@@ -122,7 +122,7 @@ class Database:
             inner: Path to the ``.gpkg`` inside the zip. Discovered if omitted.
         """
         self.ensure_spatial()
-        source = vsizip(archive, inner or _find_gpkg(archive))
+        source = vsizip(archive, inner or find_layer_file(archive))
         options = f", layer='{layer}'" if layer else ""
         self.con.execute(
             f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM ST_Read('{source}'{options});"
@@ -225,14 +225,29 @@ class Database:
         self.close()
 
 
-def _find_gpkg(archive: Path) -> str:
-    """Locate the ``.gpkg`` inside a zip without extracting it."""
+def find_layer_file(archive: Path) -> str:
+    """Locate the single readable geospatial file inside a zip, without extracting.
+
+    Refuses to guess when a zip holds more than one candidate. The EEZ v12 archive
+    contains both ``eez_v12.gpkg`` (285 polygons -- what §5.4 needs) and
+    ``eez_boundaries_v12.gpkg`` (2,349 linestrings). Picking alphabetically would
+    silently select the boundaries and every point-in-polygon test would return
+    nothing, with no error anywhere.
+    """
     import zipfile
 
     with zipfile.ZipFile(archive) as zf:
-        names = [n for n in zf.namelist() if n.lower().endswith(".gpkg")]
+        names = [
+            n for n in zf.namelist()
+            if n.lower().endswith((".gpkg", ".shp")) and not n.endswith("/")
+        ]
     if not names:
-        raise FileNotFoundError(f"no .gpkg inside {archive}")
+        raise FileNotFoundError(f"no .gpkg or .shp inside {archive}")
     if len(names) > 1:
-        log.warning("%s holds %d GeoPackages; using %s", archive.name, len(names), names[0])
+        raise ValueError(
+            f"{archive.name} holds {len(names)} candidate layers, so the choice "
+            f"cannot be guessed:\n  " + "\n  ".join(sorted(names))
+            + "\n  Name the one you want explicitly via the `inner` argument or the "
+            "layer's `inner:` key in config/pilot.yaml."
+        )
     return names[0]

@@ -124,6 +124,14 @@ spatial:
   high_seas: data/external/marineregions/World_High_Seas_v2_20241010_gpkg.zip
   eca_sox_pm: data/external/marineregions/eca_reg14_sox_pm.zip
 
+  # Path to the layer INSIDE each archive. Named explicitly rather than discovered,
+  # because the EEZ zip holds two GeoPackages: eez_v12.gpkg (285 polygons, what
+  # §5.4 needs) and eez_boundaries_v12.gpkg (2,349 linestrings). Choosing the
+  # boundaries would make every point-in-polygon test return nothing, silently.
+  layers:
+    eez: World_EEZ_v12_20231025_gpkg/eez_v12.gpkg
+    eca_sox_pm: eca_reg14_sox_pm/eca_reg14_sox_pm.shp
+
   # OPEN ITEM 3 -- REQUIRED BY §4.1 AND NOT YET PRESENT.
   # The Table 16 operating-mode matrix needs distance-to-coast per vessel-hour.
   # Distance-to-port cannot stand in: beyond 5 nm from any port, coast distance is

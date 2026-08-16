@@ -188,6 +188,7 @@ class Config:
     run: dict[str, Any]
     paths: dict[str, Path]
     spatial: dict[str, Path]
+    spatial_layers: dict[str, str]
     validation: dict[str, Any]
     defaults: dict[str, Any]
     factors: dict[str, Any]
@@ -261,6 +262,10 @@ class Config:
                 f"spatial layer {key!r} is configured as {path} but that file does not exist."
             )
         return path
+
+    def spatial_inner(self, key: str) -> str | None:
+        """Path to the layer inside the archive, if config names one."""
+        return self.spatial_layers.get(key)
 
     # -- scenario space -----------------------------------------------------
 
@@ -396,7 +401,14 @@ def load_config(config_dir: Path | None = None) -> Config:
         )
 
     paths = {k: PROJECT_ROOT / v for k, v in (pilot.get("paths") or {}).items()}
-    spatial = {k: PROJECT_ROOT / v for k, v in (pilot.get("spatial") or {}).items()}
+
+    # `spatial.layers` names the file INSIDE each archive; everything else is an
+    # archive path. Kept apart so a layer name is never mistaken for a filesystem
+    # path -- the EEZ zip holds two GeoPackages and guessing between them fails
+    # silently.
+    spatial_block = dict(pilot.get("spatial") or {})
+    layers = spatial_block.pop("layers", None) or {}
+    spatial = {k: PROJECT_ROOT / v for k, v in spatial_block.items()}
 
     return Config(
         start_date=study["start_date"],
@@ -405,6 +417,7 @@ def load_config(config_dir: Path | None = None) -> Config:
         run=run,
         paths=paths,
         spatial=spatial,
+        spatial_layers=layers,
         validation=pilot.get("validation") or {},
         defaults=vessel_specs.get("defaults") or {},
         factors=factors,
