@@ -1,0 +1,15 @@
+{
+  "status": 201,
+  "body": {
+    "period": {
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31"
+    },
+    "vesselIdsWithoutIdentity": null,
+    "coverage": {
+      "blocks": "6801",
+      "blocksWithPositions": "6794",
+      "percentage": 99.8970739597118
+    }
+  }
+}

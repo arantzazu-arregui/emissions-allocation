@@ -1,0 +1,267 @@
+# IMO Fourth GHG Study 2020 constants, as data.
+#
+# Every table below was extracted from
+#   data/external/imo/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf
+# and verified against the rendered page, not only against `pdftotext` output --
+# several of this report's tables are images that text extraction mangles or drops.
+# Printed page numbers are given alongside PDF page numbers because they differ by 28.
+
+source:
+  document: "IMO (2020). Fourth IMO Greenhouse Gas Study 2020"
+  file: data/external/imo/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf
+  extracted: 2026-08-16
+  method: "pdftotext -layout, each table confirmed against a pdftoppm render of the page"
+
+# =============================================================================
+# Table 16 -- Operational phase assignment decision matrix
+# printed p.66 / PDF p.94.  Used by §4.1.
+# =============================================================================
+operating_mode_matrix:
+  table: "Table 16"
+  page: {printed: 66, pdf: 94}
+
+  # The five columns are an ORDERED LADDER: the first applicable column wins.
+  #
+  # !! The 'Port 1-5 nm' column is footnoted in the source:
+  # !!   "* Applicable to chemical tankers, liquified gas tankers, oil tankers
+  # !!    and other liquids tankers only."
+  # !! because liquid tankers are often lightered offshore and so can berth
+  # !! within 5 nm of port. docs/METHODOLOGY.md §4.1 reproduces this column
+  # !! WITHOUT the footnote, which would wrongly let a container ship be
+  # !! "At berth" up to 5 nm from port. See docs/METHODOLOGY.md open items.
+  columns:
+    - {key: port_le_1,  bound: "port distance <= 1 nm",       applies_to: all}
+    - {key: port_1_5,   bound: "port distance 1-5 nm",        applies_to: liquid_tankers_only}
+    - {key: coast_le_1, bound: "coast distance <= 1 nm",      applies_to: all}
+    - {key: coast_1_5,  bound: "coast distance 1-5 nm",       applies_to: all}
+    - {key: coast_ge_5, bound: "coast distance >= 5 nm",      applies_to: all}
+
+  liquid_tanker_types: [chemical_tanker, liquefied_gas_tanker, oil_tanker, other_liquids_tanker]
+
+  # Speed-band boundaries are inclusive as the source states them:
+  #   "1<=" , "1-3 (incl. 3)" , "3-5 (incl. 5)" , ">5"
+  # i.e. sog <= 1 | 1 < sog <= 3 | 3 < sog <= 5 | sog > 5. A clean partition.
+  # docs/METHODOLOGY.md §4.1 writes the bands without stating inclusivity.
+  rows:
+    - {sog_max: 1.0,               me_load: null,
+       modes: [at_berth,    at_berth,        anchored,        anchored,        anchored]}
+    - {sog_min: 1.0, sog_max: 3.0, me_load: null,
+       modes: [anchored,    anchored,        anchored,        anchored,        anchored]}
+    - {sog_min: 3.0, sog_max: 5.0, me_load_max: 0.65,
+       modes: [manoeuvring, manoeuvring,     manoeuvring,     manoeuvring,     slow_transit]}
+    - {sog_min: 3.0, sog_max: 5.0, me_load_min: 0.65,
+       modes: [manoeuvring, manoeuvring,     manoeuvring,     manoeuvring,     normal_cruising]}
+    - {sog_min: 5.0,               me_load_max: 0.65,
+       modes: [manoeuvring, slow_transit,    slow_transit,    slow_transit,    slow_transit]}
+    - {sog_min: 5.0,               me_load_min: 0.65,
+       modes: [manoeuvring, normal_cruising, normal_cruising, normal_cruising, normal_cruising]}
+
+  # The source measures coast distance against Natural Earth coastline shapefiles
+  # and port distance against its own port point dataset (each port a single point).
+  distance_reference:
+    coast: "Natural Earth coastline shapefiles (as used by the source study)"
+    port: "port dataset, each port represented by a single point (source study §2.7.1)"
+
+  # §4.1 limitation: GFW does not expose AIS navigational status, so 'at_berth'
+  # and 'anchored' are separated by distance alone. For the 12,000-14,499 TEU
+  # band this is a 1,300 vs 1,800 kW auxiliary difference, and vessel A spends
+  # 24.9% of the study period inside port visits.
+
+# =============================================================================
+# Table 17 -- Auxiliary engine and boiler power output (kW)
+# printed p.68 / PDF p.96.  Used by §4.3.
+# Bands are [min, max]; `null` max means open-ended.
+# =============================================================================
+auxiliary_boiler_power:
+  table: "Table 17"
+  page: {printed: 68, pdf: 96}
+  modes: [at_berth, anchored, manoeuvring, sea]   # column order for every band below
+
+  # Decision tree that OVERRIDES the table for small ships, quoted from p.68:
+  overrides:
+    - {mcr_min: 0,   mcr_max: 150, rule: "auxiliary engine and boiler both set to zero"}
+    - {mcr_min: 150, mcr_max: 500, rule: "auxiliary engine = 5% of installed main engine power; boiler from the table"}
+    - {mcr_min: 500, mcr_max: null, rule: "table values used as-is"}
+    # Neither override applies to vessel A.
+
+  ship_types:
+
+    container:
+      size_unit: TEU
+      bands:
+        - {min: 0,     max: 999,   boiler: [250, 250, 240, 0], auxiliary: [370,  450,  790,  410]}
+        - {min: 1000,  max: 1999,  boiler: [340, 340, 310, 0], auxiliary: [820,  910,  1750, 900]}
+        - {min: 2000,  max: 2999,  boiler: [460, 450, 430, 0], auxiliary: [610,  910,  1900, 920]}
+        - {min: 3000,  max: 4999,  boiler: [480, 480, 430, 0], auxiliary: [1100, 1350, 2500, 1400]}
+        - {min: 5000,  max: 7999,  boiler: [590, 580, 550, 0], auxiliary: [1100, 1400, 2800, 1450]}
+        - {min: 8000,  max: 11999, boiler: [620, 620, 540, 0], auxiliary: [1150, 1600, 2900, 1800]}
+        - {min: 12000, max: 14499, boiler: [630, 630, 630, 0], auxiliary: [1300, 1800, 3250, 2050]}  # <- vessel A
+        - {min: 14500, max: 19999, boiler: [630, 630, 630, 0], auxiliary: [1400, 1950, 3600, 2300]}
+        - {min: 20000, max: null,  boiler: [700, 700, 700, 0], auxiliary: [1400, 1950, 3600, 2300]}
+
+    bulk_carrier:
+      size_unit: dwt
+      bands:
+        - {min: 0,      max: 9999,   boiler: [70,  70,  60,  0], auxiliary: [110, 180, 500,  190]}
+        - {min: 10000,  max: 34999,  boiler: [70,  70,  60,  0], auxiliary: [110, 180, 500,  190]}
+        - {min: 35000,  max: 59999,  boiler: [130, 130, 120, 0], auxiliary: [150, 250, 680,  260]}
+        - {min: 60000,  max: 99999,  boiler: [260, 260, 240, 0], auxiliary: [240, 400, 1100, 410]}
+        - {min: 100000, max: 199999, boiler: [260, 260, 240, 0], auxiliary: [240, 400, 1100, 410]}
+        - {min: 200000, max: null,   boiler: [260, 260, 240, 0], auxiliary: [240, 400, 1100, 410]}
+
+    oil_tanker:
+      size_unit: dwt
+      bands:
+        - {min: 0,      max: 4999,   boiler: [500,  100, 100, 0],   auxiliary: [250,  250, 375,  250]}
+        - {min: 5000,   max: 9999,   boiler: [750,  150, 150, 0],   auxiliary: [375,  375, 560,  375]}
+        - {min: 10000,  max: 19999,  boiler: [1250, 250, 250, 0],   auxiliary: [690,  500, 580,  490]}
+        - {min: 20000,  max: 59999,  boiler: [2700, 270, 270, 270], auxiliary: [720,  520, 600,  510]}
+        - {min: 60000,  max: 79999,  boiler: [3250, 360, 360, 280], auxiliary: [620,  490, 770,  560]}
+        - {min: 80000,  max: 119999, boiler: [4000, 400, 400, 280], auxiliary: [800,  640, 910,  690]}
+        - {min: 120000, max: 199999, boiler: [6500, 500, 500, 300], auxiliary: [2500, 770, 1300, 860]}
+        - {min: 200000, max: null,   boiler: [7000, 600, 600, 300], auxiliary: [2500, 770, 1300, 860]}
+
+    chemical_tanker:
+      size_unit: dwt
+      bands:
+        - {min: 0,     max: 4999,  boiler: [670,  160, 130, 0], auxiliary: [110, 170, 190, 200]}
+        - {min: 5000,  max: 9999,  boiler: [670,  160, 130, 0], auxiliary: [330, 490, 560, 580]}
+        - {min: 10000, max: 19999, boiler: [1000, 240, 200, 0], auxiliary: [330, 490, 560, 580]}
+        - {min: 20000, max: 39999, boiler: [1350, 320, 270, 0], auxiliary: [790, 550, 900, 660]}
+        - {min: 40000, max: null,  boiler: [1350, 320, 270, 0], auxiliary: [790, 550, 900, 660]}
+
+    general_cargo:
+      size_unit: dwt
+      bands:
+        - {min: 0,     max: 4999,  boiler: [0,   0,   0,   0], auxiliary: [90,  50,  180,  60]}
+        - {min: 5000,  max: 9999,  boiler: [110, 110, 100, 0], auxiliary: [240, 130, 490,  180]}
+        - {min: 10000, max: 19999, boiler: [150, 150, 130, 0], auxiliary: [720, 370, 1450, 520]}
+        - {min: 20000, max: null,  boiler: [150, 150, 130, 0], auxiliary: [720, 370, 1450, 520]}
+
+    liquefied_gas_tanker:
+      size_unit: cbm
+      bands:
+        - {min: 0,      max: 49999,  boiler: [1000, 200, 200, 100], auxiliary: [240,  240,  360,  240]}
+        - {min: 50000,  max: 99999,  boiler: [1000, 200, 200, 100], auxiliary: [1700, 1700, 2600, 1700]}
+        - {min: 100000, max: 199999, boiler: [1500, 300, 300, 150], auxiliary: [2500, 2000, 2300, 2650]}
+        - {min: 200000, max: null,   boiler: [3000, 600, 600, 300], auxiliary: [6750, 7200, 7200, 6750]}
+
+    other_liquids_tanker:
+      size_unit: dwt
+      bands:
+        - {min: 0,    max: 999,  boiler: [1000, 200, 200, 100], auxiliary: [500, 500, 750, 500]}
+        - {min: 1000, max: null, boiler: [1000, 200, 200, 100], auxiliary: [500, 500, 750, 500]}
+
+# =============================================================================
+# Table 19 -- SFC_base (g/kWh) by engine type, fuel and year built
+# printed pp.70-71 / PDF pp.98-99.  Used by §3.4 and §4.4.
+# Only the 2001+ column is carried: both pilot hulls are post-2001 builds.
+# =============================================================================
+sfc_base:
+  table: "Table 19"
+  page: {printed: [70, 71], pdf: [98, 99]}
+  year_built_column: "2001+"
+  unit: g/kWh
+  engines:
+    SSD:               {HFO: 175, MDO: 165}    # slow-speed diesel, main engine
+    MSD:               {HFO: 195, MDO: 185}    # medium-speed diesel
+    HSD:               {HFO: 205, MDO: 190}    # high-speed diesel
+    auxiliary_engine:  {HFO: 195, MDO: 185, LNG: 156}
+    boiler:            {HFO: 340, MDO: 320, LNG: 285}   # "Steam Turbines (and boilers)"
+
+# =============================================================================
+# §4.4 -- main engine load correction, IMO equation (10), verbatim
+#   SFC_ME,i = SFC_base * (0.455*Load^2 - 0.710*Load + 1.280)
+# printed p.71 / PDF p.99.
+# =============================================================================
+load_correction:
+  equation: "IMO Fourth GHG Study 2020, equation (10)"
+  page: {printed: 71, pdf: 99}
+  form: "SFC_base * (a*Load^2 + b*Load + c)"
+  a: 0.455
+  b: -0.710
+  c: 1.280
+  # The quadratic minimises at -b/2a = 0.710/(2*0.455) = 0.7802, matching the
+  # source's stated "most efficient load at around 80% MCR". This is an internal
+  # check that the coefficients are transcribed correctly, and is asserted in
+  # tests/test_emissions_model.py.
+  minimises_at: 0.7802197802197802
+
+  # Equation (11): auxiliary engines and boilers are NOT corrected by CF_L.
+  #   FC_AE|BO,i = SFC_base * W_AE|BO,i
+  aux_boiler_load_corrected: false
+
+  # p.70: "At engine loads below 7%, fuel consumption and all the emissions
+  # derived from the main engine are assumed to be zero."
+  main_engine_cutoff_load: 0.07
+
+# =============================================================================
+# Table 20 -- Low load adjustment factors
+# printed p.74 / PDF p.102.  Used by §3.5.
+# =============================================================================
+low_load_factors:
+  table: "Table 20"
+  page: {printed: 74, pdf: 102}
+  # CO2's LLF is 1.00 at EVERY load, so no adjustment is applied anywhere in this
+  # project. Footnote: "These pollutants vary directly as a function of fuel
+  # consumption, which itself is a function of engine load, so LLFs are not applied."
+  CO2:
+    "<=2%": 1.00
+    "10%":  1.00
+    "20%":  1.00
+  applied: false
+
+# =============================================================================
+# Table 21 -- Fuel-based emission factors
+# printed p.74 / PDF p.102.  Used by §3.3.
+# =============================================================================
+emission_factors:
+  table: "Table 21"
+  page: {printed: 74, pdf: 102}
+  unit: g CO2 / g fuel
+  fuels:
+    HFO:         {carbon_content: 0.8493, ef_f: 3.114}
+    LSHFO_1.0:   {carbon_content: 0.8493, ef_f: 3.114}
+    MDO:         {carbon_content: 0.8744, ef_f: 3.206}
+    LNG:         {carbon_content: 0.7500, ef_f: 2.750}
+    Methanol:    {carbon_content: 0.3750, ef_f: 1.375}
+  # "'MDO' refers to distillate marine fuels in general, which would include
+  # marine gas oil (MGO). For low-sulphur HFO fuels it was assumed the same
+  # carbon content and EF_f than with HFO."
+  #
+  # §3.2: the IMO 2020 sulphur cap is therefore IMMATERIAL to CO2. LSHFO carries
+  # the same factor as HFO, and scrubber fitting affects SOx only. The fuel-switch
+  # date is recorded for transparency but does not change the result.
+
+# =============================================================================
+# §3.1 -- fuel assignment rule (Selin et al. 2021, following the IMO study)
+# =============================================================================
+fuel_assignment:
+  # Distillate (MDO/MGO) when ANY condition holds; residual (HFO) otherwise.
+  distillate_when:
+    - main_engine_is_high_speed      # HSD -- not applicable to either pilot hull
+    - inside_eca                     # point-in-polygon, §3.1 condition 2
+    - voyage_leg_is_eu_to_eu         # from voyage_leg.is_eu_eu, §3.1 condition 3
+  residual_fuel: HFO
+  distillate_fuel: MDO
+
+  eca:
+    source: "Marine Regions -- MARPOL Annex VI Regulation 14 (SOx and PM)"
+    file: data/external/marineregions/eca_reg14_sox_pm.zip
+    polygons: [Baltic Sea, North Sea, US Caribbean, North American 1, North American 2, North American 3]
+    # The shapefile PREDATES the Mediterranean SOx ECA (in force May 2025).
+    # Irrelevant to a period ending 2024; must be added if the horizon extends.
+    mediterranean_included: false
+
+# =============================================================================
+# §6.1 -- unit conversions
+# =============================================================================
+conversions:
+  # Global Carbon Budget reports million tonnes of CARBON, not CO2.
+  mtc_to_mtco2:
+    value: 3.664
+    source: "docs/METHODOLOGY.md §6.1; ratio of molar masses CO2:C = 44.009/12.011"
+  # UNdata bunker CSVs use "Metric tons, thousand".
+  undata_thousand_tonnes_to_tonnes:
+    value: 1000
+    source: "UNdata, UN Energy Statistics Database -- unit string 'Metric tons, thousand'"

@@ -1,0 +1,16 @@
+round 3 probe  2026-08-16T01:46:18+00:00
+vessel 103dbbea9-9221-5f81-a00f-657a515745bb / IMO 9516454
+
+[OK ] 200  A1_groups_list                   recs=8     hours=0      vessels=8    list groups, offset supplied
+[ERR] 403  B1_create_vesselId               recs=0     hours=0      vessels=0    {"name": "ea-pilot-20260815214531-1", "vessels": [{"vesselId": "103dbbea9-9221-5f81-a00f-6
+[ERR] 403  B2_create_id                     recs=0     hours=0      vessels=0    {"name": "ea-pilot-20260815214531-2", "vessels": [{"id": "103dbbea9-9221-5f81-a00f-657a515
+[ERR] 403  B3_create_searchparams           recs=0     hours=0      vessels=0    {"name": "ea-pilot-20260815214531-3", "searchParams": {"ids": ["103dbbea9-9221-5f81-a00f-6
+    group_id = None
+    -- C/D skipped: no group created
+[OK ] 200  E1_vessel_detail                 recs=0     hours=0      vessels=0    no includes -- does selfReportedInfo carry name history?
+    names found: [('registryInfo', 'COSCOITALY', '2014-04-01T07:41:08Z', '2026-06-30T23:55:02Z'), ('selfReportedInfo', 'COSCO ITALY', '2014-05-03T07:21:15Z', '2026-08-13T23:58:31Z'), ('selfReportedInfo', 'COSCOITALY', '2014-05-03T07:21:15Z', '2026-08-13T23:58:31Z')]
+[ERR] 422  E2_search_by_imo                 recs=0     hours=0      vessels=0    how many identity records share this IMO? property offset should not exist
+[OK ] 200  F1_exact                         recs=15    hours=15     vessels=1    shipname in ("COSCO ITALY")
+[OK ] 200  F2_lowercase                     recs=0     hours=0      vessels=0    shipname in ("cosco italy")
+[OK ] 200  F3_partial                       recs=0     hours=0      vessels=0    shipname in ("COSCO")
+[OK ] 200  F4_two_names                     recs=15    hours=15     vessels=1    shipname in ("COSCO ITALY","EVER GIVEN")

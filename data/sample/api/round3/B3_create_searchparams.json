@@ -1,0 +1,5 @@
+{
+  "message": "Not authorized by permissions",
+  "error": "Forbidden",
+  "statusCode": 403
+}

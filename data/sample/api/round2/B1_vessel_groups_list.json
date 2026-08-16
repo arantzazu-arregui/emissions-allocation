@@ -1,0 +1,14 @@
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "messages": [
+    {
+      "title": "If",
+      "detail": "If you send the limit property then the offset property is required"
+    },
+    {
+      "title": "offset",
+      "detail": "offset must not be less than 0"
+    }
+  ]
+}

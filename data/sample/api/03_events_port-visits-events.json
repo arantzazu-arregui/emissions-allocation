@@ -1,0 +1,206 @@
+{
+  "metadata": {
+    "datasets": [
+      "public-global-port-visits-events:v4.0"
+    ],
+    "vessels": [
+      "103dbbea9-9221-5f81-a00f-657a515745bb"
+    ],
+    "dateRange": {
+      "from": "2024-01-01",
+      "to": "2024-02-01"
+    },
+    "portVisitConfidences": [
+      "3",
+      "4"
+    ]
+  },
+  "limit": 20,
+  "offset": 0,
+  "nextOffset": null,
+  "total": 2,
+  "entries": [
+    {
+      "start": "2024-01-10T22:33:23.000Z",
+      "end": "2024-01-15T13:32:18.000Z",
+      "id": "81381752577ccae3366ec7a5921252a8",
+      "type": "port_visit",
+      "position": {
+        "lat": 33.689,
+        "lon": -118.1486
+      },
+      "regions": {
+        "mpa": [],
+        "eez": [
+          "8456"
+        ],
+        "rfmo": [
+          "IWC",
+          "IATTC",
+          "PICES",
+          "ACAP"
+        ],
+        "fao": [
+          "77"
+        ],
+        "majorFao": [
+          "77"
+        ],
+        "eez12Nm": [
+          "8456"
+        ],
+        "highSeas": [],
+        "mpaNoTakePartial": [],
+        "mpaNoTake": []
+      },
+      "boundingBox": [
+        -118.1486171459441,
+        33.68897543160553,
+        -118.20358504750276,
+        33.70254110760256
+      ],
+      "distances": {
+        "startDistanceFromShoreKm": 7,
+        "endDistanceFromShoreKm": 5,
+        "startDistanceFromPortKm": 0,
+        "endDistanceFromPortKm": 0
+      },
+      "vessel": {
+        "id": "103dbbea9-9221-5f81-a00f-657a515745bb",
+        "name": "COSCO ITALY",
+        "ssvid": "477845600",
+        "flag": "HKG",
+        "type": "cargo",
+        "nextPort": null
+      },
+      "port_visit": {
+        "visitId": "bca0e7962144eb74aaaf7c8f67304748",
+        "confidence": "4",
+        "durationHrs": 110.98194444444445,
+        "startAnchorage": {
+          "anchorageId": "80dd3afb",
+          "atDock": false,
+          "distanceFromShoreKm": "7",
+          "flag": "USA",
+          "id": "usa-longbeach",
+          "lat": 33.68897543160553,
+          "lon": -118.1486171459441,
+          "name": null,
+          "topDestination": "LONG BEACH"
+        },
+        "intermediateAnchorage": {
+          "anchorageId": "80dd3afb",
+          "atDock": false,
+          "distanceFromShoreKm": "7",
+          "flag": "USA",
+          "id": "usa-longbeach",
+          "lat": 33.68897543160553,
+          "lon": -118.1486171459441,
+          "name": null,
+          "topDestination": "LONG BEACH"
+        },
+        "endAnchorage": {
+          "anchorageId": "80dd3a03",
+          "atDock": false,
+          "distanceFromShoreKm": "5",
+          "flag": "USA",
+          "id": "usa-longbeach",
+          "lat": 33.70254110760256,
+          "lon": -118.20358504750276,
+          "name": null,
+          "topDestination": "LOS ANGELES"
+        }
+      }
+    },
+    {
+      "start": "2024-01-31T09:03:22.000Z",
+      "end": "2024-02-01T01:55:31.000Z",
+      "id": "2b816b7ab8c7da9a726b5cd8756029b9",
+      "type": "port_visit",
+      "position": {
+        "lat": 35.0241,
+        "lon": 128.8112
+      },
+      "regions": {
+        "mpa": [],
+        "eez": [
+          "8327"
+        ],
+        "rfmo": [
+          "ACAP",
+          "IWC",
+          "PICES",
+          "WCPFC"
+        ],
+        "fao": [
+          "61"
+        ],
+        "majorFao": [
+          "61"
+        ],
+        "eez12Nm": [],
+        "highSeas": [],
+        "mpaNoTakePartial": [],
+        "mpaNoTake": []
+      },
+      "boundingBox": [
+        128.81123797845154,
+        35.02407816280944,
+        128.81123797845154,
+        35.02407816280944
+      ],
+      "distances": {
+        "startDistanceFromShoreKm": 1,
+        "endDistanceFromShoreKm": 1,
+        "startDistanceFromPortKm": 0,
+        "endDistanceFromPortKm": 0
+      },
+      "vessel": {
+        "id": "103dbbea9-9221-5f81-a00f-657a515745bb",
+        "name": "COSCO ITALY",
+        "ssvid": "477845600",
+        "flag": "HKG",
+        "type": "cargo",
+        "nextPort": null
+      },
+      "port_visit": {
+        "visitId": "93dbe9e7f16d9053f200f958f47a7375",
+        "confidence": "4",
+        "durationHrs": 16.86916666666667,
+        "startAnchorage": {
+          "anchorageId": "3568d77b",
+          "atDock": true,
+          "distanceFromShoreKm": "1",
+          "flag": "KOR",
+          "id": "kor-busannewport",
+          "lat": 35.02407816280944,
+          "lon": 128.81123797845154,
+          "name": null,
+          "topDestination": "ANCHORAGE"
+        },
+        "intermediateAnchorage": {
+          "anchorageId": "3568d77b",
+          "atDock": true,
+          "distanceFromShoreKm": "1",
+          "flag": "KOR",
+          "id": "kor-busannewport",
+          "lat": 35.02407816280944,
+          "lon": 128.81123797845154,
+          "name": null,
+          "topDestination": "ANCHORAGE"
+        },
+        "endAnchorage": {
+          "anchorageId": "3568d77b",
+          "atDock": true,
+          "distanceFromShoreKm": "1",
+          "flag": "KOR",
+          "id": "kor-busannewport",
+          "lat": 35.02407816280944,
+          "lon": 128.81123797845154,
+          "name": null,
+          "topDestination": "ANCHORAGE"
+        }
+      }
+    }
+  ]
+}

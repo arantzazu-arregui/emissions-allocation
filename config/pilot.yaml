@@ -1,0 +1,108 @@
+# Pilot run configuration.
+#
+# Everything vessel-specific lives here or in vessel_specs.yaml, never in code.
+# Scaling from two vessels to the full fleet is a loop over `vessels`, not an edit
+# to any module. See docs/METHODOLOGY.md and CLAUDE.md.
+
+study:
+  # Selin et al. replication window. Inclusive of both endpoints.
+  # Presence is pulled one request per calendar year: [YYYY-01-01, YYYY+1-01-01).
+  start_date: 2017-01-01
+  end_date: 2024-12-31
+
+vessels:
+  # --- Vessel A --------------------------------------------------------------
+  # Fixed. The co-located majority: flag HKG, all three commercial roles -> China.
+  - imo: "9516454"
+    label: A
+    # The presence filter matches on shipname, EXACTLY and CASE-SENSITIVELY.
+    # A wrong name returns HTTP 200 with zero rows and no error, so every name the
+    # hull has carried inside the study period must be listed here. `in (...)`
+    # accepts a list, so the whole rename history fits one request.
+    #
+    # "NE116" is a genuine former self-reported identity for this hull
+    # (2014-04-21 -> 2014-04-27, imo null) but predates the study period, so it is
+    # recorded for provenance and not queried.
+    shipnames: ["COSCO ITALY"]
+    former_shipnames_outside_period: ["NE116"]
+
+  # --- Vessel B --------------------------------------------------------------
+  # NOT SELECTED. Open item 1. Run docs/METHODOLOGY.md §0.2 via
+  #   python scripts/run_pipeline.py --stage select
+  # which executes steps 1-4 (API-side criteria) and writes a ranked shortlist.
+  # Step 5 (criterion 7: registered-owner country != flag country) requires an
+  # Equasis login and cannot be automated; close it by hand, then add the block
+  # here and the matching entry in vessel_specs.yaml.
+  #
+  # Vessel A alone gives a DEGENERATE allocation -- flag, owner, ISM manager and
+  # commercial manager all resolve to China once Hong Kong folds in -- so the
+  # allocation comparison produces nothing interpretable until B exists.
+  # See docs/METHODOLOGY.md "Scope and honest limits".
+
+run:
+  # --- Sensitivity axes (docs/METHODOLOGY.md §8.1) ---------------------------
+  # These are RANGES carried through the scenario cross join, not point estimates.
+  # emissions_hour is keyed by every combination.
+
+  # §1.6 centred moving-average width, in hours. Must be odd (centred).
+  # w=1 is the unsmoothed series, retained as the baseline that shows the v^3 bias.
+  # OPEN ITEM 5: the window is validated on one day of data only.
+  smoothing_windows: [1, 3, 5, 7]
+
+  # §6.4. Hong Kong is not a separate UNFCCC party, but the GCB carries it
+  # separately from China and the two baselines differ by ~370x. Decisive for
+  # vessel A and not obviously correct either way, so both are computed.
+  hk_treatments: [separate, folded_into_china]
+
+  # §2.2. Which power/speed estimates to carry. Estimates A and B are derived at
+  # runtime from hull dimensions. Estimate C is a SOURCED specification and is
+  # null in vessel_specs.yaml (OPEN ITEM 4) -- listing it here without supplying
+  # the values raises MissingParameter rather than substituting a default.
+  power_estimates: [A, B]
+
+  # §4.5. Reported both ways regardless; this selects the headline figure.
+  coverage_correction: true
+
+  # §1.2 assertion (c): reject a presence pull whose observed hours fall below
+  # this fraction of elapsed hours. Vessel A measures 0.9998 for 2024.
+  # This is a data-integrity floor, not a physical parameter.
+  hour_coverage_min: 0.95
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  out: data/out
+  external: data/external
+
+spatial:
+  # Read directly out of the zips by DuckDB's spatial extension via GDAL /vsizip/.
+  eez: data/external/marineregions/World_EEZ_v12_20231025_gpkg.zip
+  high_seas: data/external/marineregions/World_High_Seas_v2_20241010_gpkg.zip
+  eca_sox_pm: data/external/marineregions/eca_reg14_sox_pm.zip
+
+  # OPEN ITEM 3 -- REQUIRED BY §4.1 AND NOT YET PRESENT.
+  # The Table 16 operating-mode matrix needs distance-to-coast per vessel-hour.
+  # Distance-to-port cannot stand in: beyond 5 nm from any port, coast distance is
+  # what separates Anchored from Slow transit, and their auxiliary loads differ
+  # (1,800 vs 2,050 kW).
+  #
+  # Download "Marine and Land Zones v4" (2024-10-10) from
+  #   https://www.marineregions.org/downloads.php
+  # drop the zip in data/external/marineregions/, and uncomment:
+  #
+  # coastline: data/external/marineregions/World_Marine_and_Land_Zones_v4_20241010_gpkg.zip
+
+validation:
+  # §8.2. THETIS-MRV is EU-scope and is used ONLY to validate, never as an input.
+  # No export is present; §8 reports PENDING -- UNVERIFIED until one appears.
+  # Export IMO 9516454 from https://mrv.emsa.europa.eu/ to:
+  thetis_mrv: data/external/thetis/
+
+  # Figures established from the captured API responses in data/sample/api/.
+  # activity.py asserts against these; a mismatch means something upstream moved.
+  expected:
+    "9516454":
+      port_calls_total: 389
+      port_calls_all_confidence: "4"
+      presence_records_2024: 8782
+      elapsed_hours_2024: 8784

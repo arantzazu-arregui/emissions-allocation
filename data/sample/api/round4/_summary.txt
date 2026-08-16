@@ -1,0 +1,32 @@
+round 4 probe  2026-08-16T03:10:36+00:00
+COSCO ITALY / IMO 9516454
+
+=== A. Port-visit history 2017-2024, paginated ===
+  page 1: 100 events, total=389, nextOffset=100
+  page 2: 100 events, total=389, nextOffset=200
+  page 3: 100 events, total=389, nextOffset=300
+  page 4: 89 events, total=389, nextOffset=None
+  389 port calls over 4 page(s)
+  calls per year: {'2017': 65, '2018': 53, '2019': 33, '2020': 45, '2021': 48, '2022': 52, '2023': 49, '2024': 44}
+  port countries: {'CHN': 194, 'TWN': 46, 'USA': 39, 'VNM': 22, 'EGY': 18, 'KOR': 16, 'DEU': 10, 'MYS': 10, 'NLD': 9, 'BEL': 9, 'GRC': 6, 'GBR': 3, 'CAN': 2, 'ARE': 2, 'RUS': 1, 'SAU': 1, 'POL': 1}
+  >>> EU port calls: {'NLD': 9, 'DEU': 10, 'BEL': 9, 'GRC': 6, 'POL': 1}
+  >>> THETIS-MRV validation is AVAILABLE
+
+=== B. Does the shipname filter return more than one IMO? ===
+  720 records, one month, world extent
+    imo=9516454    name='COSCO ITALY'    flag=HKG  records=720
+  >>> distinct IMOs returned: 1  -- single hull, but keep the post-filter anyway
+
+=== C. One full year (2024) of hourly presence ===
+  completed in 44s, 8782 records
+  envelope: total=1 limit=None offset=None nextOffset=None
+  observed hours (all identities): 8,782 of 8,784 elapsed = 100.0%
+  observed hours (IMO 9516454 only): 8,782
+  >>> no pagination -- 8-year pull is ~6 min at this rate
+
+=== D. Does a coverage / insights endpoint exist? ===
+  [ERR] 422  D1_insights_get  property limit should not exist; property offset should not exist; startDate must be on or after January 1, 2020; If you send the startDate property then the endDate property is required; startDate mu
+  [OK ] 201  D2_insights_post  
+  [ERR] 404  D3_insights_root  404 page not found
+  [ERR] 404  D4_vessel_coverage  404 page not found
+  >>> coverage metric: AVAILABLE via D2_insights_post

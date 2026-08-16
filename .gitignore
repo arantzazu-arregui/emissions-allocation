@@ -10,9 +10,11 @@ venv/
 .env
 *.token
 
-# Data outputs (regenerable via scripts)
-data/
-*.csv
+# Data (raw, interim, processed, and generated outputs are not versioned).
+# data/sample/api/ IS tracked: it holds the captured raw API responses that the
+# behaviour documented in CLAUDE.md is sourced from. See scripts/exploratory/.
+data/*
+!data/sample/
 
 # OS / editor
 .DS_Store

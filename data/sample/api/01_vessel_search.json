@@ -1,0 +1,130 @@
+{
+  "limit": 5,
+  "since": null,
+  "total": 1,
+  "entries": [
+    {
+      "dataset": "public-global-vessel-identity:v4.0",
+      "registryInfoTotalRecords": 1,
+      "registryInfo": [
+        {
+          "id": "250ca698c7730988e3046bca59d30d94",
+          "sourceCode": [
+            "IMO"
+          ],
+          "ssvid": "477845600",
+          "flag": "HKG",
+          "shipname": "COSCOITALY",
+          "nShipname": "COSCOITALY",
+          "callsign": "VRNE4",
+          "imo": "9516454",
+          "latestVesselInfo": true,
+          "transmissionDateFrom": "2014-04-01T07:41:08Z",
+          "transmissionDateTo": "2026-06-30T23:55:02Z",
+          "geartypes": [
+            "CARGO"
+          ],
+          "lengthM": null,
+          "tonnageGt": 153666,
+          "vesselInfoReference": "60cfe1d3ae43e6fbd0e84223e66fbca7",
+          "extraFields": []
+        }
+      ],
+      "registryOwners": [
+        {
+          "name": "COSCO ITALY SHIPPING",
+          "flag": "HKG",
+          "ssvid": "477845600",
+          "sourceCode": [
+            "IMO"
+          ],
+          "dateFrom": "2014-04-01T07:41:08Z",
+          "dateTo": "2026-06-30T23:55:02Z"
+        }
+      ],
+      "combinedSourcesInfo": [
+        {
+          "vesselId": "103dbbea9-9221-5f81-a00f-657a515745bb",
+          "geartypes": [
+            {
+              "name": "CARGO",
+              "source": "COMBINATION_OF_REGISTRY_AND_AIS_INFERRED_NN_INFO",
+              "yearFrom": 2014,
+              "yearTo": 2026
+            }
+          ],
+          "shiptypes": [
+            {
+              "name": "CARGO",
+              "source": "COMBINATION_OF_REGISTRY_AND_AIS_INFERRED_NN_INFO",
+              "yearFrom": 2014,
+              "yearTo": 2026
+            }
+          ]
+        },
+        {
+          "vesselId": "5552f59b9-9df5-72c8-2a67-cd2ee8449750",
+          "geartypes": [
+            {
+              "name": "CARGO",
+              "source": "COMBINATION_OF_REGISTRY_AND_AIS_INFERRED_NN_INFO",
+              "yearFrom": 2014,
+              "yearTo": 2014
+            }
+          ],
+          "shiptypes": [
+            {
+              "name": "CARGO",
+              "source": "COMBINATION_OF_REGISTRY_AND_AIS_INFERRED_NN_INFO",
+              "yearFrom": 2014,
+              "yearTo": 2014
+            }
+          ]
+        }
+      ],
+      "selfReportedInfo": [
+        {
+          "id": "103dbbea9-9221-5f81-a00f-657a515745bb",
+          "ssvid": "477845600",
+          "shipname": "COSCO ITALY",
+          "nShipname": "COSCOITALY",
+          "flag": "HKG",
+          "callsign": "VRNE4",
+          "imo": "9516454",
+          "messagesCounter": 13341603,
+          "positionsCounter": 4070246,
+          "sourceCode": [
+            "AIS"
+          ],
+          "matchFields": "SEVERAL_FIELDS",
+          "transmissionDateFrom": "2014-05-03T07:21:15Z",
+          "transmissionDateTo": "2026-08-13T23:58:31Z"
+        },
+        {
+          "id": "5552f59b9-9df5-72c8-2a67-cd2ee8449750",
+          "ssvid": "477845600",
+          "shipname": "NE116",
+          "nShipname": "NE116",
+          "flag": "HKG",
+          "callsign": "VRNE4",
+          "imo": null,
+          "messagesCounter": 1372,
+          "positionsCounter": 507,
+          "sourceCode": [
+            "AIS"
+          ],
+          "matchFields": "SEVERAL_FIELDS",
+          "transmissionDateFrom": "2014-04-21T01:42:12Z",
+          "transmissionDateTo": "2014-04-27T03:48:08Z"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "query": "9516454",
+    "normalizedQuery": "9516454",
+    "didYouMean": {
+      "shipname": {}
+    }
+  }
+}

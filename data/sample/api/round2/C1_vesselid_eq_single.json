@@ -1,0 +1,10 @@
+{
+  "statusCode": 503,
+  "error": "Service Unavailable",
+  "messages": [
+    {
+      "title": "Service Unavailable",
+      "detail": "code: 46, message: Function with name `VESSEL_UPPER` does not exist. In scope  vessels AS v"
+    }
+  ]
+}

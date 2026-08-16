@@ -1,0 +1,132 @@
+{
+  "metadata": {},
+  "limit": 5,
+  "offset": null,
+  "nextOffset": 5,
+  "total": 9452,
+  "entries": [
+    {
+      "id": "calamar_1-user-public",
+      "name": "Calamar_1",
+      "ownerId": 25808,
+      "ownerType": "user",
+      "vessels": [
+        {
+          "dataset": "public-global-all-vessels:v20201001",
+          "vesselId": "7d4eae16f-f8d1-cdba-89b2-8c21b2210fe1"
+        },
+        {
+          "dataset": "public-global-all-vessels:v20201001",
+          "vesselId": "f33b20f6a-ae98-fbe9-5bda-6de1ce8eff27"
+        }
+      ],
+      "createdAt": "2023-05-30T15:17:53.422Z",
+      "updatedAt": "2024-10-23T00:00:00.000Z",
+      "vesselGroupData": [],
+      "vesselsSummary": {
+        "totalVessels": 2,
+        "distinctRelationIds": 0,
+        "datasets": [
+          "public-global-all-vessels:v20201001"
+        ]
+      }
+    },
+    {
+      "id": "mi_fe-user-public",
+      "name": "mi fe",
+      "ownerId": 7519,
+      "ownerType": "user",
+      "vessels": [
+        {
+          "dataset": "public-peru-vessel-identity-fishing:v20211126",
+          "vesselId": "04fc7d182-277f-820e-a815-1ea7d8d94a3b"
+        }
+      ],
+      "createdAt": "2024-04-04T16:30:17.842Z",
+      "updatedAt": "2024-10-23T00:00:00.000Z",
+      "vesselGroupData": [],
+      "vesselsSummary": {
+        "totalVessels": 1,
+        "distinctRelationIds": 0,
+        "datasets": [
+          "public-peru-vessel-identity-fishing:v20211126"
+        ]
+      }
+    },
+    {
+      "id": "2020_mcb_dec-user-public",
+      "name": "2020_mcb_dec",
+      "ownerId": 7519,
+      "ownerType": "user",
+      "vessels": [
+        {
+          "dataset": "public-peru-vessel-identity-fishing:v20211126",
+          "vesselId": "01afe81fb-ba0f-f517-70ea-3c5a13955340"
+        },
+        {
+          "dataset": "public-global-vessel-identity:v20231026",
+          "vesselId": "857bc4736-65e7-88de-2479-09850b75cc82"
+        }
+      ],
+      "createdAt": "2024-03-21T19:51:35.772Z",
+      "updatedAt": "2024-10-23T00:00:00.000Z",
+      "vesselGroupData": [],
+      "vesselsSummary": {
+        "totalVessels": 2,
+        "distinctRelationIds": 0,
+        "datasets": [
+          "public-peru-vessel-identity-fishing:v20211126",
+          "public-global-vessel-identity:v20231026"
+        ]
+      }
+    },
+    {
+      "id": "150_voi-user-public",
+      "name": "150 voi",
+      "ownerId": 21056,
+      "ownerType": "user",
+      "vessels": [
+        {
+          "dataset": "private-global-other-vessels:v20201001",
+          "vesselId": "9052527d4-414a-e8ba-82d4-8e202cc225aa"
+        }
+      ],
+      "createdAt": "2022-10-17T14:20:25.742Z",
+      "updatedAt": "2024-10-23T00:00:00.000Z",
+      "vesselGroupData": [],
+      "vesselsSummary": {
+        "totalVessels": 1,
+        "distinctRelationIds": 0,
+        "datasets": [
+          "private-global-other-vessels:v20201001"
+        ]
+      }
+    },
+    {
+      "id": "testystest-user-public",
+      "name": "testystest",
+      "ownerId": 35192,
+      "ownerType": "user",
+      "vessels": [
+        {
+          "dataset": "public-global-vessel-identity:v20231026",
+          "vesselId": "c2b5ad487-7f8b-f935-3650-083dcdb3af77"
+        },
+        {
+          "dataset": "public-global-vessel-identity:v20231026",
+          "vesselId": "3a0e346be-e62c-e148-60bb-2d64347d22b0"
+        }
+      ],
+      "createdAt": "2024-05-31T15:38:27.357Z",
+      "updatedAt": "2024-10-23T00:00:00.000Z",
+      "vesselGroupData": [],
+      "vesselsSummary": {
+        "totalVessels": 2,
+        "distinctRelationIds": 0,
+        "datasets": [
+          "public-global-vessel-identity:v20231026"
+        ]
+      }
+    }
+  ]
+}

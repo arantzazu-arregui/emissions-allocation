@@ -1,0 +1,20 @@
+round 2 probe  2026-08-16T01:36:50+00:00
+vessel 103dbbea9-9221-5f81-a00f-657a515745bb (HKG)
+
+[OK ] 200  A1_world_narrow_filter             recs=14489  hours=14489   vessels=991   world polygon accepted?
+[OK ] 200  A2_socal_same_filter               recs=5      hours=5       vessels=4     same filter, small box (control)
+[ERR] 422  B1_vessel_groups_list              recs=0      hours=0       vessels=0     does the endpoint exist? If you send the limit property then the offset property is required; offset must not be less than 0
+    group_id = None
+[ERR] 422  C1_vesselid_eq_single              recs=0      hours=0       vessels=0     vessel_id = '103dbbea9-9221-5f81-a00f-657a515745bb' code: 46, message: Function with name `VESSEL_UPPER` does not exist. In scope  vessels AS v
+[ERR] 422  C2_vesselid_eq_double              recs=0      hours=0       vessels=0     vessel_id = "103dbbea9-9221-5f81-a00f-657a515745bb" code: 46, message: Function with name `VESSEL_UPPER` does not exist. In scope  vessels AS v
+[ERR] 422  C3_vesselid_in_double              recs=0      hours=0       vessels=0     vessel_id in ("103dbbea9-9221-5f81-a00f-657a515745bb") code: 46, message: Function with name `VESSEL_UPPER` does not exist. In scope  vessels AS v
+[ERR] 422  C4_imo_eq                          recs=0      hours=0       vessels=0     imo = "9516454" Error generating query &{%!e(int32=47) %!e(string=DB::Exception) %!e(string=Unknown expression or function identifier `imo` in scope SELECT ROUND(lat, 2) AS lat
+[ERR] 422  C5_imo_in                          recs=0      hours=0       vessels=0     imo in ("9516454") Error generating query &{%!e(int32=47) %!e(string=DB::Exception) %!e(string=Unknown expression or table expression identifier `imo` in scope SELECT ROUND(lat, 2
+[ERR] 422  C6_ssvid_in                        recs=0      hours=0       vessels=0     ssvid in ("477845600") Error generating query &{%!e(int32=47) %!e(string=DB::Exception) %!e(string=Unknown expression or table expression identifier `ssvid` in scope SELECT ROUND(lat,
+[ERR] 422  C7_mmsi_in                         recs=0      hours=0       vessels=0     mmsi in ("477845600") Error generating query &{%!e(int32=47) %!e(string=DB::Exception) %!e(string=Unknown expression or table expression identifier `mmsi` in scope SELECT ROUND(lat,
+[OK ] 200  C8_shipname_in                     recs=15     hours=15      vessels=1     shipname in ("COSCO ITALY")
+[OK ] 200  C9_world_C8_shipname_in            recs=24     hours=24      vessels=1     world extent + shipname in ("COSCO ITALY")
+[OK ] 200  D_hourly_speedfilter               recs=24     hours=24      vessels=14    HOURLY: does the speed condition still bind?
+[OK ] 200  D_hourly_nospeedfilter             recs=526    hours=526     vessels=32    HOURLY: control, no speed condition
+[OK ] 200  D_daily_speedfilter                recs=24     hours=24      vessels=14    DAILY: does the speed condition still bind?
+[OK ] 200  D_daily_nospeedfilter              recs=89     hours=526     vessels=32    DAILY: control, no speed condition

@@ -1,0 +1,69 @@
+{
+  "status": 422,
+  "body": {
+    "statusCode": 422,
+    "error": "Unprocessable Entity",
+    "messages": [
+      {
+        "title": "property",
+        "detail": "property limit should not exist"
+      },
+      {
+        "title": "property",
+        "detail": "property offset should not exist"
+      },
+      {
+        "title": "startDate",
+        "detail": "startDate must be on or after January 1, 2020"
+      },
+      {
+        "title": "If",
+        "detail": "If you send the startDate property then the endDate property is required"
+      },
+      {
+        "title": "startDate",
+        "detail": "startDate must be a valid ISO 8601 date string"
+      },
+      {
+        "title": "endDate",
+        "detail": "endDate must be greater than to startDate"
+      },
+      {
+        "title": "endDate",
+        "detail": "endDate must be on or after January 1, 2020"
+      },
+      {
+        "title": "If",
+        "detail": "If you send the endDate property then the startDate property is required"
+      },
+      {
+        "title": "endDate",
+        "detail": "endDate must be a valid ISO 8601 date string"
+      },
+      {
+        "title": "each",
+        "detail": "each value in datasets must be a string"
+      },
+      {
+        "title": "vessels",
+        "detail": "vessels array must contain at least 1 element"
+      },
+      {
+        "title": "datasets",
+        "detail": "datasets must be an array"
+      },
+      {
+        "title": "each",
+        "detail": "each value in vessels must be a string"
+      },
+      {
+        "title": "vessels",
+        "detail": "vessels array must contain at least 1 element"
+      },
+      {
+        "title": "vessels",
+        "detail": "vessels must be an array"
+      }
+    ]
+  }
+}

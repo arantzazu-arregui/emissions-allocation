@@ -1,0 +1,13 @@
+GFW API sample dump  2026-08-16T01:32:28+00:00
+test IMO 9516454, vessel_id 103dbbea9-9221-5f81-a00f-657a515745bb
+
+[OK ] 200  01_vessel_search.json  search IMO 9516454
+    vessel_id = 103dbbea9-9221-5f81-a00f-657a515745bb
+[ERR] 422  02_vessel_detail.json  registryInfo / selfReportedInfo / combinedSourcesInfo shape
+[OK ] 200  03_events_port-visits-events.json  public-global-port-visits-events:latest
+[OK ] 200  04_presence_hourly.json  baseline, unfiltered
+[OK ] 200  05_speed_a_speed_only.json  filters[0]=speed in ("10-15")
+[OK ] 200  05_speed_b_combined_and.json  filters[0]=vessel_type in ("cargo") AND speed in ("10-15")
+[OK ] 200  05_speed_c_separate_params.json  filters[0]=vessel_type in ("cargo") | filters[1]=speed in ("10-15")
+[ERR] 422  06_presence_vessel_filter.json  vessel_id filter on presence -- decides the fetch architecture
+[ERR] 422  07_presence_world_extent.json  world polygon -- 56-request path or not

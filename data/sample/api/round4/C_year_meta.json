@@ -1,0 +1,13 @@
+{
+  "seconds": 44.0,
+  "n_records": 8782,
+  "total_field": 1,
+  "limit": null,
+  "offset": null,
+  "nextOffset": null,
+  "observed_hours_all": 8782,
+  "observed_hours_our_imo": 8782,
+  "distinct_imos": [
+    "9516454"
+  ]
+}

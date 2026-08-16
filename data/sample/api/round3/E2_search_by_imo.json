@@ -1,0 +1,10 @@
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "messages": [
+    {
+      "title": "property",
+      "detail": "property offset should not exist"
+    }
+  ]
+}

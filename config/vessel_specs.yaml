@@ -1,0 +1,242 @@
+# Ship specifications and the parameters the emission model needs.
+#
+# EVERY estimated parameter carries `value`, `source` and `method`, so a researcher
+# with IHS World Register of Shipping access can substitute observed values without
+# touching model code. config.py REJECTS an estimated field that is missing any of
+# the three.
+#
+# `estimated: true` means the number was derived or assigned, not observed. It is
+# surfaced in every notebook table so a reader is never unsure which is which.
+#
+# THE CENTRAL DATA CONSTRAINT (docs/METHODOLOGY.md §2): no free source supplies
+# installed power or design speed. The IMO Fourth GHG Study's own fallback
+# regressions (equations 3 and 4) publish only symbolic coefficients and are
+# mutually circular -- speed needs power, power needs speed. Three independent
+# estimates are therefore carried in parallel with NO PRIMARY.
+
+# =============================================================================
+# defaults -- shared regression constants, not per-hull
+# =============================================================================
+defaults:
+
+  # --- §2.1 TEU capacity -----------------------------------------------------
+  # IMO Table 17 indexes container ships by TEU; Equasis does not carry TEU.
+  # Inverted to TEU = (B / coefficient)^(1/exponent).
+  teu_from_beam:
+    coefficient: 3.27
+    exponent: 0.29
+    source: "Cepowski & Chorab (2021), Ocean Engineering 238, 109727 -- beam relation, fitted on 215 container designs built 2015-2020"
+    method: "inverted; beam is the better proxy for container ships because it sets the on-deck row count"
+    estimated: true
+    # Their draught relation gives 15,840 TEU for this hull; beam gives 13,174.
+    # Their TEU-based LBP relation (LBP = 3.16*TEU^0.34) returns 79.5 m at
+    # 13,200 TEU and is evidently mis-transcribed. NOT USED.
+
+  # Deadweight relations, used only to validate the inversion above -- they are
+  # not inputs to the model. Reported in the notebook as the basis for trusting it.
+  hull_from_dwt_validation:
+    lbp: {coefficient: 3.656, exponent: 0.38}   # -> 344.4 m vs LOA 365.9 (LBP ~ 0.95 LOA)
+    beam: {coefficient: 1.15, exponent: 0.32}   # ->  52.8 m vs actual 51.2
+    draught: {coefficient: 0.624, exponent: 0.27}  # -> 15.8 m vs actual 16.0
+    source: "Cepowski & Chorab (2021)"
+    method: validation only
+    estimated: true
+
+  # --- §2.2 estimate A -- IMO EEXI curve fit ---------------------------------
+  # V = A * DWT^B ;  MCR = C * DWT^D
+  # MEPC.333(76) writes P_ME for INSTALLED power; this project calls it MCR
+  # throughout, because the Fourth GHG Study uses P_ME for instantaneous demand.
+  eexi_curve_fit:
+    source: "IMO Resolution MEPC.333(76) (2021), Calculation of the Attained EEXI"
+    method: "power-law curve fit on deadweight, constants by ship type"
+    estimated: true
+    containership: {A: 3.240, B: 0.183, C: 0.504, D: 1.030}
+    # KNOWN FAILURE: D = 1.030 makes power nearly LINEAR in deadweight, which
+    # breaks at the top of the container range where modern designs are
+    # deliberately under-powered for slow steaming. At 156,610 DWT it returns
+    # 28.92 kn -- above the 24.5 kn maximum of the modern container fleet.
+    # specs.py flags this via the fleet-envelope check; it is a reported result,
+    # not a bug to be silently corrected.
+
+    # NOT TRANSCRIBED. MEPC.333(76) Table 1 publishes constants for bulk carriers
+    # and tankers too, but the resolution is not in data/external/ and the
+    # constants cannot be back-solved from the single worked example each that
+    # docs/METHODOLOGY.md §2.2 quotes (80,000 DWT bulk -> 14.46 kn / 10,672 kW;
+    # 300,000 DWT tanker -> 16.08 kn / 26,000 kW -- two unknowns, one data point).
+    # Required before vessel B, if vessel B is a bulk carrier or tanker.
+    bulk_carrier: null
+    tanker: null
+
+  # --- §2.2 estimate B -- Admiralty coefficient, calibrated ------------------
+  # V   = Fn * sqrt(g * L_BP) / 0.5144        [knots]
+  # MCR = displacement^(2/3) * V^3 / C_adm
+  admiralty:
+    c_adm:
+      median: 482
+      mean: 478
+      sd: 57
+      min: 352
+      max: 593
+      source: "Charchalis (2014), Journal of KONES 21(2), 39-44 -- Table 1, 17 container ships with matched speed, power and displacement"
+      method: "calibrated; consistent with the textbook 400-600 band"
+      estimated: true
+      # WEAKEST JOINT IN THE ESTIMATE: calibrated on 1,200-1,400 TEU feeders and
+      # extrapolated across a tenfold size jump.
+    froude_number:
+      min: 0.19
+      max: 0.21
+      source: "Cepowski & Chorab (2021) -- modern container fleet mean is 0.21"
+      method: "range; larger recent ships trend lower"
+      estimated: true
+    block_coefficient:
+      value: 0.61
+      source: "docs/METHODOLOGY.md §2.2"
+      method: assigned
+      estimated: true
+    seawater_density:
+      value: 1.025
+      unit: t/m3
+      source: standard
+      method: constant
+      estimated: false
+    dwt_to_displacement_ratio:
+      value: 0.80
+      source: "Charchalis (2014)"
+      method: "displacement = DWT / 0.80"
+      estimated: true
+      # The two displacement routes (C_B*L*B*T*rho vs DWT/0.80) differ by ~18% on
+      # Charchalis's own worked example. They bracket a real convention
+      # difference, not a rounding error, so BOTH are carried.
+
+  # --- §8.2 fleet-envelope validation check ----------------------------------
+  container_fleet_speed_envelope:
+    min_kn: 6.0
+    max_kn: 24.5
+    source: "Cepowski & Chorab (2021), Table 1 -- 215 distinct container designs built since 2015"
+    method: "observed range of service speeds"
+    estimated: false
+
+  # --- §2.3 engine type ------------------------------------------------------
+  default_engine_type:
+    value: SSD
+    source: "IMO Fourth GHG Study 2020 -- slow-speed diesel is the stated default for any oil-propelled ship not otherwise classifiable; Table 10 gives engine-type shares by year"
+    method: "assigned; the IHS engine field the study uses is unavailable to us"
+    estimated: true
+
+# =============================================================================
+# Per-IMO blocks
+# =============================================================================
+vessels:
+
+  "9516454":   # COSCO ITALY
+    name: COSCO ITALY
+    mmsi: {value: "477845600", source: "GFW presence + Equasis", method: observed, estimated: false}
+    callsign: {value: VRNE4, source: "GFW registryInfo + Equasis", method: observed, estimated: false}
+    flag: {value: HKG, source: "Equasis; GFW registryInfo.flag", method: observed, estimated: false}
+    ship_type: {value: container, source: Equasis, method: observed, estimated: false}
+    year_built: {value: 2014, source: Equasis, method: observed, estimated: false}
+
+    dwt: {value: 156610, unit: t, source: Equasis, method: observed, estimated: false}
+
+    # Equasis and GFW disagree on gross tonnage: Equasis 154,592 (since 2023),
+    # GFW registryInfo[0].tonnageGt 153,666. GT is NOT an input to the emission
+    # model -- deadweight drives every regression -- so both are recorded rather
+    # than reconciled.
+    gt: {value: 154592, unit: t, source: "Equasis (since 2023)", method: observed, estimated: false}
+    gt_gfw: {value: 153666, unit: t, source: "GFW registryInfo.tonnageGt", method: observed, estimated: false}
+
+    loa_m: {value: 365.90, source: public vessel registers, method: observed, estimated: false}
+    beam_m: {value: 51.20, source: public vessel registers, method: observed, estimated: false}
+    draught_m: {value: 16.0, source: public vessel registers, method: observed, estimated: false}
+
+    # L_BP is not published for this hull. Estimate B needs it for the Froude
+    # number. LBP ~ 0.95 * LOA is the standard container-ship approximation and
+    # is corroborated by Cepowski & Chorab's DWT relation (344.4 m predicted).
+    lbp_m:
+      value: 345.0
+      source: "docs/METHODOLOGY.md §2.2"
+      method: "LBP ~ 0.95 * LOA, corroborated by Cepowski & Chorab DWT relation (344.4 m)"
+      estimated: true
+
+    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default (§2.3)", method: assigned, estimated: true}
+
+    # teu is DERIVED at runtime by specs.py from beam_m. Not hand-entered, so that
+    # the inversion is exercised rather than asserted. Expected ~13,174.
+    teu: derived
+
+    power_estimates:
+      # A and B are derived at runtime from the defaults block above.
+      A: derived
+      B: derived
+
+      # --- OPEN ITEM 4 -----------------------------------------------------
+      # Estimate C is a SOURCED specification -- installed power and service speed
+      # from shipbuilder or class-society records for this specific hull. Most
+      # defensible for the pilot; does not scale.
+      #
+      # NOT FOUND. specs.py raises MissingParameter naming this field if 'C' is
+      # listed in pilot.yaml run.power_estimates while these are null. No
+      # plausible default is substituted -- these two numbers look guessable and
+      # are not.
+      C:
+        mcr_kw: {value: null, source: null, method: null, estimated: true}
+        design_speed_kn: {value: null, source: null, method: null, estimated: true}
+
+    # --- §5.1 allocation keys ------------------------------------------------
+    # Equasis supplies an IMO company identification number per role, which gives
+    # the fleet-scale version a stable join key rather than fuzzy name matching.
+    #
+    # All three commercial roles resolve to China while the flag is Hong Kong.
+    # That is the pattern Selin et al. quantify at fleet scale, and it is why
+    # vessel A alone produces a degenerate result.
+    allocation_keys:
+      flag:
+        country: HKG
+        source: "Equasis; GFW registryInfo.flag"
+        method: observed
+        estimated: false
+      owner:
+        country: CHN
+        company: COSCO ITALY SHIPPING LTD
+        company_imo: "4178111"
+        address: "C/O COSCO Shipping Lines, Shanghai"
+        source: "Equasis registered owner"
+        method: "address-derived"
+        estimated: true
+        # CAVEAT (§5.2): Equasis gives an ADDRESS, not a country of incorporation.
+        # This is a single-purpose company whose place of registration is not
+        # stated. Selin et al. used WRS's owner-country field, a different
+        # construct.
+        #
+        # GFW registryOwners[0].flag returns HKG -- identical to the ship's flag
+        # and contradicting the Shanghai address. It appears to echo the ship
+        # flag rather than record owner domicile. NOT USED.
+      manager:
+        country: CHN
+        company: SHANGHAI OCEAN SHIPPING CO LTD
+        company_imo: "5193283"
+        source: "Equasis ISM manager"
+        method: "address-derived"
+        estimated: true
+      operator:
+        country: CHN
+        company: COSCO SHIPPING LINES CO LTD
+        company_imo: "1043944"
+        source: "Equasis commercial manager"
+        method: "PROXY -- Equasis has no operator field"
+        estimated: true
+        # CAVEAT (§5.2): this partially collapses the operator and manager
+        # options and must be reported as such.
+      bunker:
+        country: null
+        source: null
+        method: "not computable at n=2 -- requires national marine-bunker sales statistics"
+        estimated: false
+        # Out of scope BY CONSTRUCTION, not by omission. Four of the paper's five
+        # options are reproduced; the fifth is a fleet-scale construct by nature.
+
+  # --- Vessel B ------------------------------------------------------------
+  # Add the block here once §0.2 and the Equasis lookup are done. Required
+  # fields mirror vessel A: dwt, beam_m, lbp_m, ship_type, engine_type, and the
+  # four allocation_keys. If B is a bulk carrier or tanker, defaults.eexi_curve_fit
+  # needs its constants transcribed from MEPC.333(76) Table 1 first.
