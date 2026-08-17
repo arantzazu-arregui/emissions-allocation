@@ -37,7 +37,19 @@ vessels:
   # Greece -- where vessel A's collapse to one.
   - imo: "9277802"
     label: B
-    shipnames: ["RCC AMERICA"]
+    # THETIS-MRV shows this hull reported as HOEGH AMERICA for 2018 and RCC AMERICA
+    # from 2019, so it was renamed inside the study period.
+    #
+    # VERIFIED, not assumed: GFW's presence records return "RCC AMERICA" for every
+    # year including 2017 and 2018 -- the presence filter matches the vessel's
+    # CURRENT identity, not the name it transmitted at the time. So the pull did not
+    # silently truncate, and 2018's 88.7% coverage is genuine reception thinness.
+    #
+    # The former name is listed anyway. It costs one extra term in an `in (...)`
+    # filter and protects the series if GFW ever keys on the historical name --
+    # which would otherwise show up as a plausible-looking coverage figure and
+    # nothing else.
+    shipnames: ["RCC AMERICA", "HOEGH AMERICA"]
 
     # ESTIMATE A ONLY. Estimate B's Admiralty coefficient is calibrated on 17
     # container ships (Charchalis 2014) and there is no published equivalent for a

@@ -301,20 +301,30 @@ def compare_thetis_mrv(cfg: Config, emissions_year: pd.DataFrame, vessel: Vessel
             ),
         )
 
-    try:
-        reported = parse_thetis_export(files[0], vessel.imo)
-    except Exception as exc:  # noqa: BLE001 - report, do not crash the run
-        return Check(
-            "THETIS-MRV", WARN, f"could not parse {files[0].name}: {exc}",
-            basis="EU-scope verified emissions",
-        )
+    # Search EVERY export for this hull rather than taking the first file. One
+    # export per vessel is the natural way to save them, and picking file[0] made
+    # vessel A read vessel B's file and report "no rows" -- a WARN that looks like
+    # missing data when the data is present in the directory.
+    reported = pd.DataFrame()
+    problems = []
+    for path in files:
+        try:
+            found = parse_thetis_export(path, vessel.imo)
+        except Exception as exc:  # noqa: BLE001 - report, do not crash the run
+            problems.append(f"{path.name}: {exc}")
+            continue
+        if not found.empty:
+            reported = pd.concat([reported, found], ignore_index=True)
 
     if reported.empty:
+        detail = f"no rows for IMO {vessel.imo} in {[p.name for p in files]}"
+        if problems:
+            detail += f"; parse problems: {problems}"
         return Check(
-            "THETIS-MRV", WARN,
-            f"{files[0].name} holds no rows for IMO {vessel.imo}",
-            basis="check the export was filtered to this hull",
+            "THETIS-MRV", WARN, detail,
+            basis="check the export covers this hull",
         )
+    reported = reported.drop_duplicates(subset=["year"]).sort_values("year")
 
     # Compare on the scenario the run treats as headline: w=3, per power estimate.
     modelled = (
