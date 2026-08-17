@@ -293,21 +293,118 @@ def compare_thetis_mrv(cfg: Config, emissions_year: pd.DataFrame, vessel: Vessel
         )
 
     try:
-        frame = (
-            pd.read_csv(files[0]) if files[0].suffix.lower() == ".csv"
-            else pd.read_excel(files[0])
-        )
+        reported = parse_thetis_export(files[0], vessel.imo)
     except Exception as exc:  # noqa: BLE001 - report, do not crash the run
-        return Check("THETIS-MRV", WARN, f"could not read {files[0].name}: {exc}")
+        return Check(
+            "THETIS-MRV", WARN, f"could not parse {files[0].name}: {exc}",
+            basis="EU-scope verified emissions",
+        )
 
-    return Check(
-        "THETIS-MRV", WARN,
-        f"read {files[0].name} ({len(frame)} rows) -- column mapping not yet "
-        "implemented; inspect and wire the IMO / reporting-period / total-CO2 "
-        "columns before relying on this",
-        basis="EU-scope verified emissions; compare as a lower bound on global CO2",
-        data={"path": str(files[0])},
+    if reported.empty:
+        return Check(
+            "THETIS-MRV", WARN,
+            f"{files[0].name} holds no rows for IMO {vessel.imo}",
+            basis="check the export was filtered to this hull",
+        )
+
+    # Compare on the scenario the run treats as headline: w=3, per power estimate.
+    modelled = (
+        emissions_year[emissions_year["smoothing_window"] == 3]
+        .pivot_table(index="year", columns="power_estimate", values="co2_tonnes")
     )
+    merged = reported.set_index("year").join(modelled, how="inner")
+    if merged.empty:
+        return Check(
+            "THETIS-MRV", WARN,
+            f"no overlapping years (reported {sorted(reported['year'])}, "
+            f"modelled {sorted(modelled.index)})",
+        )
+
+    estimate_cols = [c for c in modelled.columns]
+    ratios = {c: (merged[c] / merged["reported_co2_t"]).median() for c in estimate_cols}
+    closest = min(ratios, key=lambda k: abs(ratios[k] - 1.0))
+
+    # THETIS-MRV covers voyages into, out of and between EEA ports plus time at
+    # berth there. This model covers the hull's entire global activity, and vessel A
+    # trades overwhelmingly outside Europe. The modelled figure should therefore
+    # EXCEED the reported one -- a ratio below 1 means the model is understating
+    # even the European subset, which would be a genuine failure.
+    detail = (
+        f"{len(merged)} overlapping year(s); modelled/reported ratio "
+        + ", ".join(f"{c}={ratios[c]:.2f}x" for c in estimate_cols)
+        + f" (closest: {closest})"
+    )
+    status = PASS if all(r >= 1.0 for r in ratios.values()) else WARN
+    if status == WARN:
+        detail += (
+            " -- a ratio BELOW 1 means the model understates even the EU subset, "
+            "which the global scope should strictly exceed"
+        )
+    return Check(
+        "THETIS-MRV", status, detail,
+        basis=(
+            "EU-scope verified emissions as a LOWER BOUND on global CO2: MRV covers "
+            "voyages into/out of/between EEA ports plus at-berth there, this model "
+            "covers all activity"
+        ),
+        data={"ratios": ratios, "closest_estimate": closest,
+              "comparison": merged.reset_index().to_dict("records")},
+    )
+
+
+# THETIS-MRV column headings, from the published export schema. Matched loosely
+# because the portal has changed capitalisation and the CO2 subscript between
+# vintages; the parser reports the actual headings when nothing matches.
+_THETIS_IMO = ("imo number", "imo")
+_THETIS_YEAR = ("reporting period", "reporting year", "year")
+_THETIS_CO2 = ("total co₂ emissions", "total co2 emissions")
+
+
+def _find_column(frame: pd.DataFrame, candidates: tuple[str, ...]) -> str | None:
+    lowered = {str(c).strip().lower(): c for c in frame.columns}
+    for candidate in candidates:
+        for key, original in lowered.items():
+            if key.startswith(candidate):
+                return original
+    return None
+
+
+def parse_thetis_export(path: Path, imo: str) -> pd.DataFrame:
+    """Read a THETIS-MRV export and return ``year, reported_co2_t`` for one hull.
+
+    **The units trap:** THETIS-MRV labels its CO2 column "m tonnes", which means
+    *metric* tonnes, not *million* tonnes. Reading it as millions would overstate a
+    ship's annual emissions by a factor of a million and still look like a number.
+
+    Raises:
+        ValueError: If the expected columns are absent, listing what was found so
+            the mapping can be corrected rather than guessed at.
+    """
+    frame = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_excel(path)
+
+    imo_col = _find_column(frame, _THETIS_IMO)
+    year_col = _find_column(frame, _THETIS_YEAR)
+    co2_col = _find_column(frame, _THETIS_CO2)
+
+    missing = [
+        name for name, col in
+        (("IMO", imo_col), ("reporting period", year_col), ("total CO2", co2_col))
+        if col is None
+    ]
+    if missing:
+        raise ValueError(
+            f"could not find {', '.join(missing)} column(s). "
+            f"Columns present: {[str(c) for c in frame.columns][:25]}"
+        )
+
+    subset = frame[frame[imo_col].astype(str).str.strip() == str(imo)].copy()
+    out = pd.DataFrame({
+        "year": pd.to_numeric(subset[year_col], errors="coerce").astype("Int64"),
+        # "m tonnes" = METRIC tonnes. No scaling.
+        "reported_co2_t": pd.to_numeric(subset[co2_col], errors="coerce"),
+    }).dropna()
+    out["year"] = out["year"].astype(int)
+    return out.sort_values("year").reset_index(drop=True)
 
 
 def run_all(
