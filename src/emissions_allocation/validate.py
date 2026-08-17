@@ -380,6 +380,7 @@ def parse_thetis_export(path: Path, imo: str) -> pd.DataFrame:
         ValueError: If the expected columns are absent, listing what was found so
             the mapping can be corrected rather than guessed at.
     """
+    path = Path(path)
     frame = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_excel(path)
 
     imo_col = _find_column(frame, _THETIS_IMO)
