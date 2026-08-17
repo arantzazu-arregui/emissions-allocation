@@ -202,6 +202,62 @@ spatial:
   # rerun of §4; 23_distance_to_coast.sql reads whatever layer this key names.
   # Worth testing both if the berth/anchored split turns out to drive the result.
 
+# =============================================================================
+# §6.3 -- territory alignment
+# =============================================================================
+# Selin et al. align to the UNFCCC party list and merge dependent territories into
+# the party responsible for them. The Global Carbon Budget does the same: its notes
+# state it lists national estimates only, and it carries no column for any Crown
+# Dependency, overseas territory or special administrative region except Hong Kong.
+#
+# A territory absent from the GCB has NO BASELINE AT ALL, so a vessel whose owner or
+# manager sits there would silently drop out of the impact aggregation -- it would
+# not appear in any ranking and nothing would say why. Mapping is therefore
+# mandatory, and config.py asserts that every allocation key resolves to a country
+# the GCB actually carries.
+#
+# This is DATA, not code. Adding a hull owned in Bermuda is a line here.
+territory_alignment:
+
+  # The rule is decided by the data, not by hand:
+  #
+  #   no GCB baseline            -> merge_into   (a necessity; nothing else exists)
+  #   GCB baseline, not a party  -> sensitivity  (a choice, so compute both ways)
+  #   GCB baseline and a party   -> leave alone
+  #
+  # "not a party" means absent from Selin et al.'s supplementary Table 1, which is
+  # the UNFCCC party list the paper aligns to. Both memberships were checked against
+  # the actual files; tests assert the split stays correct.
+
+  # No GCB column exists for these, so there is no alternative treatment to compute.
+  merge_into:
+    Isle of Man: United Kingdom      # Crown Dependency; RCC AMERICA's owner and operator
+    Jersey: United Kingdom
+    Guernsey: United Kingdom
+    Gibraltar: United Kingdom
+    Cayman Islands: United Kingdom
+    Falkland Islands: United Kingdom
+    Curacao: Netherlands
+    Sint Maarten: Netherlands
+    Faroe Islands: Denmark
+
+  # These DO have their own GCB baseline but are absent from the paper's party list,
+  # so merging them is a methodological choice and both ways are computed. Hong Kong
+  # is not special here -- it is one of six territories in the same position, and
+  # treating it as a one-off was a scaling defect.
+  #
+  # Taiwan matters most: 262.3 Mt CO2 in 2024, so folding it into China moves a
+  # major emitter's entire budget. Merging it unconditionally would have discarded
+  # that silently.
+  sensitivity:
+    Hong Kong: {parent: China}
+    Macao: {parent: China}
+    Taiwan: {parent: China}
+    Bermuda: {parent: United Kingdom}
+    British Virgin Islands: {parent: United Kingdom}
+    Aruba: {parent: Netherlands}
+    Greenland: {parent: Denmark}
+
 validation:
   # §8.2. THETIS-MRV is EU-scope and is used ONLY to validate, never as an input.
   # No export is present; §8 reports PENDING -- UNVERIFIED until one appears.

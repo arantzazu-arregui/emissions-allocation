@@ -51,9 +51,13 @@ def vessel_key_table(cfg: Config, hk_treatment: str) -> pd.DataFrame:
     for vessel in cfg:
         for option in ALLOCATION_OPTIONS:
             key = vessel.allocation_keys.get(option) or {}
+            # The vessel records where the company actually sits; the territory
+            # map decides which national budget carries it. Keeping those separate
+            # is what lets a hull owned in the Isle of Man or Hong Kong be added
+            # as config rather than as a special case in this function.
             gcb_name = key.get("gcb_name")
-            if hk_treatment == "folded_into_china" and key.get("gcb_name_folded"):
-                gcb_name = key["gcb_name_folded"]
+            if gcb_name:
+                gcb_name = cfg.resolve_territory(gcb_name, hk_treatment)
             rows.append({
                 "imo": vessel.imo,
                 "option": option,

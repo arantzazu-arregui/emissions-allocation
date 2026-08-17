@@ -189,6 +189,7 @@ class Config:
     paths: dict[str, Path]
     spatial: dict[str, Path]
     spatial_layers: dict[str, str]
+    territory_alignment: dict[str, Any]
     validation: dict[str, Any]
     defaults: dict[str, Any]
     factors: dict[str, Any]
@@ -262,6 +263,23 @@ class Config:
                 f"spatial layer {key!r} is configured as {path} but that file does not exist."
             )
         return path
+
+    def resolve_territory(self, name: str, hk_treatment: str = "separate") -> str:
+        """Map a territory to the country whose GCB baseline carries it (§6.3).
+
+        Unconditional merges come from ``territory_alignment.merge_into``; the one
+        territory the GCB carries separately is resolved by the treatment. A name
+        the GCB already carries passes through unchanged.
+        """
+        alignment = self.territory_alignment or {}
+        sensitivity = (alignment.get("sensitivity") or {}).get(name)
+        if sensitivity:
+            # "separate" keeps the territory's own baseline; any other treatment
+            # merges it into the party that covers it. The axis is still named
+            # hk_treatments for continuity, but it governs all seven territories --
+            # Taiwan's 262 Mt moves under it too, not just Hong Kong's 33 Mt.
+            return name if hk_treatment == "separate" else sensitivity["parent"]
+        return (alignment.get("merge_into") or {}).get(name, name)
 
     def spatial_inner(self, key: str) -> str | None:
         """Path to the layer inside the archive, if config names one."""
@@ -418,6 +436,7 @@ def load_config(config_dir: Path | None = None) -> Config:
         paths=paths,
         spatial=spatial,
         spatial_layers=layers,
+        territory_alignment=pilot.get("territory_alignment") or {},
         validation=pilot.get("validation") or {},
         defaults=vessel_specs.get("defaults") or {},
         factors=factors,

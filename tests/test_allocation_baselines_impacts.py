@@ -327,3 +327,64 @@ def test_scenario_spread_reports_a_band(chain) -> None:
 
 def test_domestic_threshold_matches_the_paper() -> None:
     assert DOMESTIC_THRESHOLD == 0.95
+
+
+# ---------------------------------------------------------------------------
+# §6.3 -- territory alignment as data
+# ---------------------------------------------------------------------------
+
+
+def test_isle_of_man_maps_to_the_united_kingdom(cfg) -> None:
+    """The GCB carries no Isle of Man column, so its emissions have no baseline of
+    their own. Assigned as the GCB does: to the sovereign party."""
+    assert cfg.resolve_territory("Isle of Man") == "United Kingdom"
+    assert cfg.resolve_territory("Isle of Man", "folded_into_china") == "United Kingdom"
+
+
+def test_hong_kong_stays_a_sensitivity_not_a_fixed_merge(cfg) -> None:
+    """It is the one territory the GCB DOES carry, so merging is a choice."""
+    assert cfg.resolve_territory("Hong Kong", "separate") == "Hong Kong"
+    assert cfg.resolve_territory("Hong Kong", "folded_into_china") == "China"
+
+
+def test_sovereign_countries_pass_through_untouched(cfg) -> None:
+    for country in ("Greece", "Bahamas", "United Kingdom", "Panama", "Liberia"):
+        assert cfg.resolve_territory(country) == country
+
+
+def test_every_mapped_territory_lands_on_a_real_gcb_country(cfg, gcb) -> None:
+    """The assertion that makes this safe at fleet scale.
+
+    A territory mapped to a country the GCB does not carry would give a vessel no
+    baseline -- it would drop out of every ranking with nothing to say why.
+    """
+    carried = set(gcb["country"])
+    for territory, parent in (cfg.territory_alignment["merge_into"]).items():
+        assert parent in carried, f"{territory} -> {parent}, which the GCB does not carry"
+
+
+def test_no_mapped_territory_is_itself_a_gcb_country(cfg, gcb) -> None:
+    """Merging a territory the GCB carries would silently discard its baseline.
+
+    Hong Kong is the exception and lives under `sensitivity` for exactly that
+    reason.
+    """
+    carried = set(gcb["country"])
+    for territory in cfg.territory_alignment["merge_into"]:
+        assert territory not in carried, (
+            f"{territory} has its own GCB baseline -- merging it unconditionally "
+            "would discard real data; move it to territory_alignment.sensitivity"
+        )
+
+
+def test_allocation_keys_all_resolve_to_a_gcb_country(cfg, gcb) -> None:
+    """Every configured vessel must be allocatable under every treatment."""
+    carried = set(gcb["country"])
+    for treatment in cfg.run["hk_treatments"]:
+        table = vessel_key_table(cfg, treatment)
+        for row in table.itertuples():
+            if row.gcb_name is None:
+                continue  # bunker option, not computable
+            assert row.gcb_name in carried, (
+                f"IMO {row.imo} {row.option}: {row.gcb_name!r} has no GCB baseline"
+            )

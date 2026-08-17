@@ -198,14 +198,11 @@ vessels:
         # place, and so a hull whose country the GCB does not carry fails loudly
         # instead of dropping out of the aggregation.
         #
-        # Hong Kong is the one key whose name depends on the §6.4 treatment:
-        # `separate` keeps it as its own 33.3 Mt CO2 baseline, `folded_into_china`
-        # merges it into China's 12,289 Mt. Selin et al.'s supplementary Table 1
-        # has NO Hong Kong row at all -- 199 countries, aligned to the UNFCCC party
-        # list, with no Taiwan or Macao either -- so the paper folds it into China
-        # and `folded_into_china` is the replication-faithful treatment.
+        # Record where the company actually sits. Which national budget carries it
+        # is decided by territory_alignment in pilot.yaml, not here -- Hong Kong is
+        # one of seven territories in that position, and hard-coding its merge here
+        # was a scaling defect.
         gcb_name: Hong Kong
-        gcb_name_folded: China
         source: "Equasis; GFW registryInfo.flag"
         method: observed
         estimated: false
