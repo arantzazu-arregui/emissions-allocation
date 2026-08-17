@@ -453,6 +453,41 @@ def stage_emissions(cfg, args) -> None:
     print(f"\nwrote emissions_year.parquet ({sum(len(f) for f in frames):,} rows)")
 
 
+def stage_validate(cfg, args) -> None:
+    """§8 -- sensitivity and validation."""
+    import pandas as pd
+
+    from emissions_allocation import activity, specs, validate
+
+    interim = cfg.path("interim")
+    for vessel in cfg:
+        print(f"\nIMO {vessel.imo} ({vessel.label})")
+        spine = pd.read_parquet(interim / f"vessel_hour_{vessel.imo}.parquet")
+        port_calls = pd.read_parquet(interim / f"port_call_{vessel.imo}.parquet")
+        legs = pd.read_parquet(interim / f"voyage_leg_{vessel.imo}.parquet")
+        hourly = pd.read_parquet(interim / f"emissions_hour_{vessel.imo}.parquet")
+        yearly = pd.read_parquet(interim / f"emissions_year_{vessel.imo}.parquet")
+        coverage = activity.coverage_by_year(spine)
+        estimates = specs.build_estimates(vessel, cfg)
+
+        checks = validate.run_all(
+            cfg, vessel, spine, port_calls, legs, coverage, hourly, yearly, estimates
+        )
+        for check in checks:
+            print("  " + check.line())
+            if check.basis:
+                print(f"            basis: {check.basis}")
+
+        summary = validate.summarise(checks)
+        summary.to_csv(cfg.path("out") / f"validation_{vessel.imo}.csv", index=False)
+
+        counts = summary["status"].value_counts().to_dict()
+        print(f"\n  {counts}")
+        if validate.FAIL in counts:
+            print("  NOTE the fleet-envelope FAIL is the EXPECTED result for "
+                  "estimate A -- see §2.2.")
+
+
 def _not_yet(name: str):
     def run(cfg, args) -> None:
         raise SystemExit(
@@ -472,9 +507,10 @@ HANDLERS = {
     "baselines": stage_baselines,
     "allocation": stage_allocation,
     "impacts": stage_impacts,
+    "validate": stage_validate,
     **{s: _not_yet(s) for s in STAGES if s not in (
         "check", "activity", "specs", "fuel", "emissions",
-        "baselines", "allocation", "impacts")},
+        "baselines", "allocation", "impacts", "validate")},
 }
 
 

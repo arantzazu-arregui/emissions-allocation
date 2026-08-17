@@ -86,3 +86,24 @@ def test_captured_api_responses_retained() -> None:
     assert api_dir.is_dir()
     for round_dir in ("round2", "round3", "round4"):
         assert (api_dir / round_dir).is_dir()
+
+
+def test_notebook_exists_and_has_outputs() -> None:
+    """The notebook demonstrates the pipeline; it must ship with results shown."""
+    import json
+
+    path = PROJECT_ROOT / "notebooks" / "01_methodology_walkthrough.ipynb"
+    assert path.is_file()
+    nb = json.loads(path.read_text(encoding="utf-8"))
+    code_cells = [c for c in nb["cells"] if c["cell_type"] == "code"]
+    assert code_cells, "no code cells"
+    assert any(c.get("outputs") for c in code_cells), "notebook has no executed output"
+    assert not any(
+        o.get("output_type") == "error"
+        for c in code_cells for o in c.get("outputs", [])
+    ), "notebook contains an error output"
+
+
+def test_notebook_is_generated_not_hand_written() -> None:
+    """Generated from a script so it stays in step with the modules."""
+    assert (PROJECT_ROOT / "notebooks" / "build_notebook.py").is_file()
