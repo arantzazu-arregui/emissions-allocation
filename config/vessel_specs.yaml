@@ -47,25 +47,58 @@ defaults:
   # MEPC.333(76) writes P_ME for INSTALLED power; this project calls it MCR
   # throughout, because the Fourth GHG Study uses P_ME for instantaneous demand.
   eexi_curve_fit:
-    source: "IMO Resolution MEPC.333(76) (2021), Calculation of the Attained EEXI"
-    method: "power-law curve fit on deadweight, constants by ship type"
+    source: "IMO Resolution MEPC.333(76) (2021), 2021 Guidelines on the method of calculation of the attained EEXI -- parameters to calculate Vref,avg"
+    method: "V = A * capacity^C, where `capacity` is the ship type's capacity parameter"
     estimated: true
-    containership: {A: 3.240, B: 0.183, C: 0.504, D: 1.030}
-    # KNOWN FAILURE: D = 1.030 makes power nearly LINEAR in deadweight, which
-    # breaks at the top of the container range where modern designs are
-    # deliberately under-powered for slow steaming. At 156,610 DWT it returns
-    # 28.92 kn -- above the 24.5 kn maximum of the modern container fleet.
-    # specs.py flags this via the fleet-envelope check; it is a reported result,
-    # not a bug to be silently corrected.
 
-    # NOT TRANSCRIBED. MEPC.333(76) Table 1 publishes constants for bulk carriers
-    # and tankers too, but the resolution is not in data/external/ and the
-    # constants cannot be back-solved from the single worked example each that
-    # docs/METHODOLOGY.md §2.2 quotes (80,000 DWT bulk -> 14.46 kn / 10,672 kW;
-    # 300,000 DWT tanker -> 16.08 kn / 26,000 kW -- two unknowns, one data point).
-    # Required before vessel B, if vessel B is a bulk carrier or tanker.
-    bulk_carrier: null
-    tanker: null
+    # !! THE CAPACITY PARAMETER IS NOT ALWAYS PLAIN DEADWEIGHT. !!
+    #
+    # Containerships CAP it at 80,000 DWT. Missing that cap was a real error here:
+    # vessel A at 156,610 DWT returned 28.89 kn uncapped against 25.55 kn capped,
+    # and because main-engine load goes as (SOG/V)^3, the wrong speed understated
+    # load by a factor of 1.45. docs/METHODOLOGY.md §2.2 quotes the uncapped 28.92
+    # kn figure, so the specification carries the same error.
+    #
+    # The cap is the resolution's own acknowledgement that the relation breaks down
+    # for large container ships -- which is precisely the failure §2.2 describes
+    # while nonetheless applying the uncapped form.
+    #
+    # `capacity` names the field; `capacity_cap` applies where the source states one.
+    speed:
+      bulk_carrier:              {A: 10.6585, capacity: dwt, C: 0.02706}
+      gas_carrier:               {A:  7.4462, capacity: dwt, C: 0.07604}
+      tanker:                    {A:  8.1358, capacity: dwt, C: 0.05383}
+      containership:             {A:  3.2395, capacity: dwt, C: 0.18294, capacity_cap: 80000}
+      general_cargo:             {A:  2.4538, capacity: dwt, C: 0.18832}
+      refrigerated_bulk:         {A:  1.0600, capacity: dwt, C: 0.31518}
+      combination_carrier:       {A:  8.1391, capacity: dwt, C: 0.05378}
+      lng_carrier:               {A: 11.0536, capacity: dwt, C: 0.05030}
+      vehicle:                   {A: 16.6773, capacity: dwt, C: 0.01802}
+      ro_ro:                     {A:  8.0793, capacity: dwt, C: 0.09123}
+      ferry_ropax:               {A:  4.1140, capacity: dwt, C: 0.19863}
+      cruise:                    {A:  5.1240, capacity: gt,  C: 0.12714}   # non-conventional propulsion
+
+    # Installed power. STILL NEEDED -- the P_ME table is a separate table in the
+    # same resolution and has not been transcribed. The containership row below is
+    # what was in use before the speed table arrived; it is retained because it
+    # reproduces METHODOLOGY's 113,004 kW, but its provenance is weaker than the
+    # speed rows above and it may carry a capacity cap of its own.
+    power:
+      containership: {C: 0.504, D: 1.030, capacity: dwt}
+      # No other ship type transcribed. specs.estimate_a_eexi raises for these
+      # rather than borrowing the containership constants.
+
+    # §2.2.7 of the same resolution, recorded as evidence for the caveat below.
+    # A cubic capacity correction applies to vehicle carriers with DWT/GT < 0.35:
+    #     f_cVEHICLE = ((DWT/GT) / 0.35)^-0.8
+    # It exists because deadweight understates vehicle carriers, which is the same
+    # reason a deadweight-based power law is a poor fit for them.
+    #   COSCO ITALY  DWT/GT = 1.013  -> does not apply
+    #   RCC AMERICA  DWT/GT = 0.367  -> does not apply (just above the threshold)
+    vehicle_capacity_correction:
+      threshold_dwt_gt: 0.35
+      exponent: -0.8
+      applies_when: "DWT/GT < 0.35"
 
   # --- §2.2 estimate B -- Admiralty coefficient, calibrated ------------------
   # V   = Fn * sqrt(g * L_BP) / 0.5144        [knots]

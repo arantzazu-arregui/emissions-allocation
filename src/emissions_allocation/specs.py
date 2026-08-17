@@ -116,46 +116,63 @@ def validate_hull_relations(vessel: Vessel, defaults: dict[str, Any]) -> dict[st
 
 
 def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimate:
-    """``V = A*DWT^B``, ``MCR = C*DWT^D`` -- MEPC.333(76) curve fit.
+    """``V = A * capacity^C`` and ``MCR = C * DWT^D`` -- MEPC.333(76).
 
-    Validates well across most of the fleet, but ``D = 1.030`` makes power nearly
-    *linear* in deadweight, which breaks at the top of the container range where
-    modern designs are deliberately under-powered for slow steaming.
+    **The capacity parameter is not always plain deadweight.** Containerships cap it
+    at 80,000 DWT, and the source states the cap explicitly. Applying the uncapped
+    value to vessel A gave 28.89 kn instead of 25.55 kn, and since main-engine load
+    goes as ``(SOG/V)^3`` that understated load by a factor of 1.45. The cap is the
+    resolution's own acknowledgement that the relation breaks down for large
+    container ships.
 
     Raises:
-        MissingParameter: If the ship type's constants are not transcribed. Only
-            containership constants are present; bulk carrier and tanker rows of
-            MEPC.333(76) Table 1 are needed before vessel B, and cannot be
-            back-solved from the single worked example each that METHODOLOGY quotes.
+        MissingParameter: If the ship type's constants are not transcribed. Speed
+            rows exist for twelve types; the power table has only containership, so
+            a bulk carrier or car carrier raises here rather than borrowing them.
     """
     ship_type = vessel.require_spec("ship_type")
     block = defaults["eexi_curve_fit"]
     key = {"container": "containership"}.get(ship_type, ship_type)
 
-    constants = block.get(key)
-    if not constants:
+    speed_row = (block.get("speed") or {}).get(key)
+    if not speed_row:
         raise MissingParameter(
-            f"MEPC.333(76) curve-fit constants for ship type {ship_type!r} are not "
-            f"transcribed in config/vessel_specs.yaml (defaults.eexi_curve_fit.{key}).\n"
-            "  They must be read from the resolution's Table 1. They CANNOT be derived "
-            "from the worked examples in docs/METHODOLOGY.md §2.2 -- each gives one "
-            "data point for two unknowns.\n"
-            "  No default is substituted."
+            f"MEPC.333(76) speed constants for ship type {ship_type!r} are not in "
+            f"config/vessel_specs.yaml (defaults.eexi_curve_fit.speed.{key}).\n"
+            f"  Known types: {sorted((block.get('speed') or {}))}"
+        )
+    power_row = (block.get("power") or {}).get(key)
+    if not power_row:
+        raise MissingParameter(
+            f"MEPC.333(76) installed-power constants for ship type {ship_type!r} are "
+            f"not transcribed (defaults.eexi_curve_fit.power.{key}).\n"
+            "  The speed table is present but the P_ME table is a separate table in "
+            "the same resolution and has not been read.\n"
+            "  Borrowing the containership row would be an invented value: no default "
+            "is substituted."
         )
 
-    dwt = vessel.require_spec("dwt")
-    speed = constants["A"] * dwt ** constants["B"]
-    mcr = constants["C"] * dwt ** constants["D"]
+    capacity_field = speed_row.get("capacity", "dwt")
+    capacity = vessel.require_spec("gt" if capacity_field == "gt" else "dwt")
+    cap = speed_row.get("capacity_cap")
+    capped = min(capacity, cap) if cap else capacity
 
+    speed = speed_row["A"] * capped ** speed_row["C"]
+    mcr = power_row["C"] * vessel.require_spec("dwt") ** power_row["D"]
+
+    method = (
+        f"V = {speed_row['A']} * {capacity_field}^{speed_row['C']}"
+        + (f" with {capacity_field} capped at {cap:,}" if cap else "")
+        + f"; MCR = {power_row['C']} * dwt^{power_row['D']}"
+    )
     return PowerEstimate(
         label="A (EEXI curve fit)",
         design_speed_kn=speed,
         mcr_kw=mcr,
         source=block["source"],
-        method=f"V = {constants['A']}*DWT^{constants['B']}, "
-               f"MCR = {constants['C']}*DWT^{constants['D']}",
+        method=method,
         within_fleet_envelope=check_fleet_envelope(speed, defaults),
-        variants={"constants": constants, "dwt": dwt},
+        variants={"capacity": capacity, "capacity_used": capped, "cap": cap},
     )
 
 
