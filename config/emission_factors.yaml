@@ -152,6 +152,87 @@ auxiliary_boiler_power:
         - {min: 0,    max: 999,  boiler: [1000, 200, 200, 100], auxiliary: [500, 500, 750, 500]}
         - {min: 1000, max: null, boiler: [1000, 200, 200, 100], auxiliary: [500, 500, 750, 500]}
 
+    # --- remaining Table 17 types, printed p.69 / PDF p.97 ---------------------
+    # Extracted so that ANY ship type resolves without further transcription.
+    # Leaving these out is what made the pipeline look complete when it was only
+    # complete for container ships.
+
+    vehicle:
+      size_unit: dwt   # the study evaluated size proxies for this type (its Figure 41)
+      bands:
+        - {min: 0,     max: 9999,  boiler: [310, 300, 250, 0], auxiliary: [800, 500, 1100, 500]}
+        - {min: 10000, max: 19999, boiler: [310, 300, 250, 0], auxiliary: [850, 550, 1400, 510]}
+        - {min: 20000, max: null,  boiler: [310, 300, 250, 0], auxiliary: [850, 550, 1400, 510]}
+
+    ro_ro:
+      size_unit: dwt
+      bands:
+        - {min: 0,     max: 4999,  boiler: [260, 250, 170, 0], auxiliary: [750,  430, 1300, 430]}
+        - {min: 5000,  max: 9999,  boiler: [260, 250, 170, 0], auxiliary: [1100, 680, 2100, 680]}
+        - {min: 10000, max: 14999, boiler: [390, 380, 260, 0], auxiliary: [1200, 950, 2700, 950]}
+        - {min: 15000, max: null,  boiler: [390, 380, 260, 0], auxiliary: [1200, 950, 2700, 950]}
+
+    refrigerated_bulk:
+      size_unit: dwt
+      bands:
+        - {min: 0,     max: 1999, boiler: [270, 270, 270, 0], auxiliary: [520,  570,  560,  570]}
+        - {min: 2000,  max: 5999, boiler: [270, 270, 270, 0], auxiliary: [1100, 1200, 1150, 1200]}
+        - {min: 6000,  max: 9999, boiler: [270, 270, 270, 0], auxiliary: [1500, 1650, 1600, 1650]}
+        - {min: 10000, max: null, boiler: [270, 270, 270, 0], auxiliary: [2850, 3100, 3000, 3100]}
+
+    ferry_pax_only:
+      size_unit: gt
+      bands:
+        - {min: 0,    max: 299,  boiler: [0, 0, 0, 0], auxiliary: [190, 190, 190, 190]}
+        - {min: 300,  max: 999,  boiler: [0, 0, 0, 0], auxiliary: [190, 190, 190, 190]}
+        - {min: 1000, max: 1999, boiler: [0, 0, 0, 0], auxiliary: [190, 190, 190, 190]}
+        - {min: 2000, max: null, boiler: [0, 0, 0, 0], auxiliary: [520, 520, 520, 520]}
+
+    ferry_ropax:
+      size_unit: gt
+      bands:
+        - {min: 0,     max: 1999,  boiler: [260, 250, 170, 0], auxiliary: [105,  105,  105,  105]}
+        - {min: 2000,  max: 4999,  boiler: [260, 250, 170, 0], auxiliary: [330,  330,  330,  330]}
+        - {min: 5000,  max: 9999,  boiler: [260, 250, 170, 0], auxiliary: [670,  670,  670,  670]}
+        - {min: 10000, max: 19999, boiler: [390, 380, 260, 0], auxiliary: [1100, 1100, 1100, 1100]}
+        - {min: 20000, max: null,  boiler: [390, 380, 260, 0], auxiliary: [1950, 1950, 1950, 1950]}
+
+    cruise:
+      size_unit: gt
+      bands:
+        - {min: 0,      max: 1999,   boiler: [1100, 950, 980, 0], auxiliary: [450,   450,   580,   450]}
+        - {min: 2000,   max: 9999,   boiler: [1100, 950, 980, 0], auxiliary: [450,   450,   580,   450]}
+        - {min: 10000,  max: 59999,  boiler: [1100, 950, 980, 0], auxiliary: [3500,  3500,  5500,  3500]}
+        - {min: 60000,  max: 99999,  boiler: [1100, 950, 980, 0], auxiliary: [11500, 11500, 14900, 11500]}
+        # The source prints "115,00" in the sea column of this band -- a typo for
+        # 11,500, consistent with every other band. Transcribed as 11,500.
+        - {min: 100000, max: 149999, boiler: [1100, 950, 980, 0], auxiliary: [11500, 11500, 14900, 11500]}
+        - {min: 150000, max: null,   boiler: [1100, 950, 980, 0], auxiliary: [11500, 11500, 14900, 11500]}
+
+    yacht:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [0, 0, 0, 0], auxiliary: [130, 130, 130, 130]}]
+
+    service_tug:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [0, 0, 0, 0], auxiliary: [100, 80, 210, 80]}]
+
+    miscellaneous_fishing:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [0, 0, 0, 0], auxiliary: [200, 200, 200, 200]}]
+
+    offshore:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [0, 0, 0, 0], auxiliary: [320, 320, 320, 320]}]
+
+    service_other:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [0, 0, 0, 0], auxiliary: [220, 220, 220, 220]}]
+
+    miscellaneous_other:
+      size_unit: gt
+      bands: [{min: 0, max: null, boiler: [110, 110, 90, 0], auxiliary: [150, 150, 430, 410]}]
+
 # =============================================================================
 # Table 19 -- SFC_base (g/kWh) by engine type, fuel and year built
 # printed pp.70-71 / PDF pp.98-99.  Used by §3.4 and §4.4.

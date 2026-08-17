@@ -133,11 +133,32 @@ def test_table17_is_range_joinable(db) -> None:
 
 
 def test_table17_covers_every_ship_type_and_mode(db) -> None:
+    """All 19 Table 17 ship types, so any hull resolves without transcription.
+
+    Carrying only the types the pilot happened to need is what made the pipeline
+    look complete when it was complete for container ships alone -- a template that
+    needs a PDF read before it can price a car carrier is not a template.
+    """
     types, modes = db.query(
         "SELECT count(DISTINCT ship_type), count(DISTINCT mode) FROM imo_table17"
     ).fetchone()
-    assert types == 7
+    assert types == 19
     assert modes == 4
+
+
+def test_table17_prices_every_ship_type_in_the_source(db) -> None:
+    present = {r[0] for r in db.query("SELECT DISTINCT ship_type FROM imo_table17").fetchall()}
+    assert {"vehicle", "ro_ro", "cruise", "ferry_ropax", "refrigerated_bulk"} <= present
+
+
+def test_vehicle_carrier_resolves(db) -> None:
+    """RCC AMERICA, DWT 21,182 -- a candidate vessel B."""
+    row = db.query("""
+        SELECT boiler_kw, auxiliary_kw FROM imo_table17
+        WHERE ship_type = 'vehicle' AND mode = 'anchored'
+          AND 21182 BETWEEN size_min AND coalesce(size_max, 1e18)
+    """).fetchone()
+    assert row == (300.0, 550.0)
 
 
 def test_table21_emission_factors_registered(db) -> None:
