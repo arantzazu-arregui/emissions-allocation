@@ -196,6 +196,7 @@ Recorded because the specification was written before implementation.
 | §1.5/§1.7 | **Gap-fill ordering is unspecified.** Nearest-neighbour position fill before speed derivation manufactures zeros. Order used: spine → position fill → derive on observed pairs with true Δt → linear speed fill. |
 | §2.2 | **Estimate B's power range is wider than quoted.** 69,600–85,100 kW comes from rounding the Froude speeds to 22–23 kn; the full 21.48–23.75 kn range gives 64,788–93,656 kW. |
 | §2 | GT disagrees: Equasis 154,592 vs GFW `tonnageGt` 153,666. Not a model input; both recorded. |
+| §1/§8.2 | **GFW splits one port stay into several "visits"** as a hull shifts between adjacent anchorage polygons. 41 of 388 legs are under 2 h, all same-country, concentrated in the Pearl River Delta and Yangshan (10 are `chn-yangshan` → `chn-yangshan`, the same port id). Five imply >30 kn, because the distance is measured between the two ports' representative anchorage points while the vessel barely moved. Worth 1.0 h of 52,292 leg-hours and 21 misclassified vessel-hours — no material effect. **Diagnosed, not merged**: merging would need an invented threshold for "the same call" and would break the 389-port-call validation figure. A cross-border impossible leg would be a real fault and still WARNs. |
 
 ---
 

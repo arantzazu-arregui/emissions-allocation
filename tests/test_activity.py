@@ -483,3 +483,79 @@ def test_smoothing_does_not_cross_an_inactivity_boundary() -> None:
     assert out.loc[out["is_inactive"], "sog_w7"].isna().all()
     # The first in-service hour after the gap must not have inherited the zeros.
     assert out.loc[340, "sog_w7"] == pytest.approx(20.0)
+
+
+# ---------------------------------------------------------------------------
+# §8.2 -- leg-speed plausibility and anchorage-segmentation artefacts
+# ---------------------------------------------------------------------------
+
+
+def _legs_and_ports(kn_target: float, origin_iso: str, dest_iso: str):
+    """One leg of interest between ports 12 km apart, plus a realistic background
+    of ordinary ocean voyages.
+
+    The background matters: the artefact diagnosis requires the impossible legs to
+    be a negligible share of total leg time, which is what distinguishes "GFW split
+    one port stay" from "this dataset is broken". A fixture containing only the
+    suspect leg would rightly fail that test.
+    """
+    hours = (12.0 / 1.852) / kn_target
+    rows = [{
+        "imo": VESSEL_A,
+        "depart_ts": pd.Timestamp("2021-03-17 14:50", tz="UTC"),
+        "arrive_ts": pd.Timestamp("2021-03-17 14:50", tz="UTC") + pd.Timedelta(hours=hours),
+        "origin_port_id": "a", "dest_port_id": "b",
+        "origin_iso3": origin_iso, "dest_iso3": dest_iso,
+        "leg_hours": hours,
+    }]
+    # 40 ordinary transpacific legs at ~14 kn, as vessel A actually sails.
+    for i in range(40):
+        rows.append({
+            "imo": VESSEL_A,
+            "depart_ts": pd.Timestamp("2021-04-01", tz="UTC") + pd.Timedelta(days=20 * i),
+            "arrive_ts": pd.Timestamp("2021-04-01", tz="UTC")
+                         + pd.Timedelta(days=20 * i, hours=400),
+            "origin_port_id": "c", "dest_port_id": "d",
+            "origin_iso3": "CHN", "dest_iso3": "USA",
+            "leg_hours": 400.0,
+        })
+    ports = pd.DataFrame([
+        {"port_id": "a", "lat": 22.50, "lon": 113.90, "duration_h": 20.0},
+        {"port_id": "b", "lat": 22.50, "lon": 114.02, "duration_h": 20.0},
+        {"port_id": "c", "lat": 31.23, "lon": 121.47, "duration_h": 30.0},
+        {"port_id": "d", "lat": 33.74, "lon": -118.27, "duration_h": 30.0},
+    ])
+    return pd.DataFrame(rows), ports
+
+
+def test_impossible_domestic_leg_is_diagnosed_not_flagged() -> None:
+    """A 39 kn leg between two adjacent Chinese anchorages is GFW splitting one
+    port stay in two, not a voyage. Reporting it as a generic WARN would bury the
+    diagnosis and make the check noise."""
+    from emissions_allocation.config import load_config
+    from emissions_allocation.validate import PASS, check_leg_speeds
+
+    legs, ports = _legs_and_ports(39.5, "CHN", "CHN")
+    check = check_leg_speeds(legs, ports)
+    assert check.status == PASS
+    assert "artefact" in check.detail
+
+
+def test_impossible_cross_border_leg_still_warns() -> None:
+    """A border-crossing leg no ship could sail is NOT an anchorage artefact --
+    it means a port call is missing or mis-ordered, and must stay visible."""
+    from emissions_allocation.validate import WARN, check_leg_speeds
+
+    legs, ports = _legs_and_ports(39.5, "CHN", "USA")
+    check = check_leg_speeds(legs, ports)
+    assert check.status == WARN
+    assert "cross a border" in check.detail
+
+
+def test_plausible_legs_pass_cleanly() -> None:
+    from emissions_allocation.validate import PASS, check_leg_speeds
+
+    legs, ports = _legs_and_ports(14.0, "CHN", "USA")
+    check = check_leg_speeds(legs, ports)
+    assert check.status == PASS
+    assert "artefact" not in check.detail

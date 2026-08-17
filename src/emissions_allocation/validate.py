@@ -127,25 +127,59 @@ def check_leg_speeds(legs: pd.DataFrame, port_calls: pd.DataFrame) -> Check:
     if usable.empty:
         return Check("Leg-speed plausibility", PENDING, "no legs with usable coordinates")
 
-    km = haversine_km(usable["o_lat"], usable["o_lon"], usable["d_lat"], usable["d_lon"])
-    kn = (km / 1.852) / usable["leg_hours"]
+    usable = usable.copy()
+    usable["km"] = haversine_km(
+        usable["o_lat"], usable["o_lon"], usable["d_lat"], usable["d_lon"]
+    )
+    usable["kn"] = (usable["km"] / 1.852) / usable["leg_hours"]
+
     # Same-port pairs give ~0 and are not informative.
-    moving = kn[km > 1.0]
-    implausible = moving[(moving > MAX_PLAUSIBLE_LEG_KN)]
+    moving = usable[usable["km"] > 1.0]
+    impossible = moving[moving["kn"] > MAX_PLAUSIBLE_LEG_KN]
 
     detail = (
-        f"{len(moving)} legs with movement, median {moving.median():.1f} kn, "
-        f"95th pct {moving.quantile(0.95):.1f} kn"
+        f"{len(moving)} legs with movement, median {moving['kn'].median():.1f} kn, "
+        f"95th pct {moving['kn'].quantile(0.95):.1f} kn"
     )
-    if not implausible.empty:
+
+    if impossible.empty:
         return Check(
-            "Leg-speed plausibility", WARN,
-            f"{detail}; {len(implausible)} above {MAX_PLAUSIBLE_LEG_KN} kn",
+            "Leg-speed plausibility", PASS, detail,
             basis="great-circle distance / leg duration (a lower bound)",
         )
+
+    # A leg no ship could sail is not a voyage. It is GFW splitting one continuous
+    # port stay into two "visits" as the hull shifts between adjacent anchorage
+    # polygons -- the Pearl River Delta and Yangshan both do this. The implied
+    # speed is inflated because the distance is measured between the two ports'
+    # REPRESENTATIVE anchorage points, while the vessel barely moved.
+    #
+    # Diagnosed rather than merged away: merging visits would need an invented
+    # threshold for "the same call", and would break the 389-port-call figure that
+    # the activity stage validates against.
+    domestic = int((impossible["origin_iso3"] == impossible["dest_iso3"]).sum())
+    same_port = int((impossible["origin_port_id"] == impossible["dest_port_id"]).sum())
+    hours = float(impossible["leg_hours"].sum())
+    total_leg_hours = float(usable["leg_hours"].sum())
+
+    if domestic == len(impossible) and hours / total_leg_hours < 0.01:
+        return Check(
+            "Leg-speed plausibility", PASS,
+            f"{detail}; {len(impossible)} legs above {MAX_PLAUSIBLE_LEG_KN} kn are "
+            f"anchorage-segmentation artefacts, not voyages "
+            f"({domestic}/{len(impossible)} same-country, {same_port} same-port, "
+            f"{hours:.1f} h = {hours / total_leg_hours:.2%} of leg time)",
+            basis="great-circle distance / leg duration; impossible legs diagnosed",
+            data={"artefact_legs": len(impossible), "artefact_hours": hours},
+        )
+
     return Check(
-        "Leg-speed plausibility", PASS, detail,
+        "Leg-speed plausibility", WARN,
+        f"{detail}; {len(impossible)} above {MAX_PLAUSIBLE_LEG_KN} kn, of which "
+        f"{len(impossible) - domestic} cross a border -- those are NOT anchorage "
+        f"artefacts and indicate a mis-ordered or missing port call",
         basis="great-circle distance / leg duration (a lower bound)",
+        data={"artefact_legs": domestic, "suspect_legs": len(impossible) - domestic},
     )
 
 
