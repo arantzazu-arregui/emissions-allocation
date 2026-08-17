@@ -74,25 +74,49 @@ def test_hull_relations_validate_within_a_few_percent(vessel, cfg) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_containership_capacity_is_capped_at_80000_dwt(vessel, cfg) -> None:
-    """MEPC.333(76) caps the containership capacity parameter at 80,000 DWT.
-
-    Vessel A is 156,610 DWT, so the cap bites. Missing it gave 28.89 kn instead of
-    25.55 kn -- and because load goes as (SOG/V)^3, that understated main-engine
-    load by 1.45x. docs/METHODOLOGY.md §2.2 quotes the uncapped figure.
-    """
-    estimate = specs.estimate_a_eexi(vessel, cfg.defaults)
-    assert estimate.variants["capacity"] == 156_610
-    assert estimate.variants["capacity_used"] == 80_000
+def test_both_containership_caps_bind_for_vessel_a(vessel, cfg) -> None:
+    """MEPC.333(76) caps the containership capacity parameter twice, differently:
+    80,000 DWT for speed and 95,000 DWT for power. Vessel A is 156,610 DWT so both
+    bind, giving the figures docs/METHODOLOGY.md §2.2 states."""
+    estimate = specs.estimate_a_eexi(vessel, cfg.defaults, cfg)
+    assert estimate.variants["capacity_speed"] == 80_000
+    assert estimate.variants["capacity_power"] == 95_000
     assert estimate.design_speed_kn == pytest.approx(25.55, abs=0.01)
-    assert estimate.mcr_kw == pytest.approx(113_004, rel=0.001)
+    assert estimate.mcr_kw == pytest.approx(67_912, rel=0.001)
 
 
-def test_uncapped_speed_would_understate_load_by_45_percent(vessel, cfg) -> None:
-    row = cfg.defaults["eexi_curve_fit"]["speed"]["containership"]
-    uncapped = row["A"] * vessel.require_spec("dwt") ** row["C"]
-    capped = specs.estimate_a_eexi(vessel, cfg.defaults).design_speed_kn
-    assert (uncapped / capped) ** 3 == pytest.approx(1.45, abs=0.02)
+def test_uncapped_values_reproduce_the_documented_error(vessel, cfg) -> None:
+    """Uncapped gives 28.89 kn / 113,673 kW -- a 1.6x error in installed power, and
+    the reason an earlier reading concluded the method fails for large boxships."""
+    s = cfg.eexi["speed"]["containership"]; p = cfg.eexi["power"]["containership"]
+    dwt = vessel.require_spec("dwt")
+    assert s["A"] * dwt ** s["C"] == pytest.approx(28.89, abs=0.02)
+    assert p["D"] * dwt ** p["F"] == pytest.approx(113_673, rel=0.005)
+
+
+def test_methodology_validation_examples_reproduce(cfg) -> None:
+    """§2.2's own worked examples, as an independent check on the tables."""
+    s, p = cfg.eexi["speed"], cfg.eexi["power"]
+    assert s["bulk_carrier"]["A"] * 80_000 ** s["bulk_carrier"]["C"] == pytest.approx(14.46, abs=0.02)
+    assert p["bulk_carrier"]["D"] * 80_000 ** p["bulk_carrier"]["F"] == pytest.approx(10_672, rel=0.01)
+    assert s["tanker"]["A"] * 300_000 ** s["tanker"]["C"] == pytest.approx(16.08, abs=0.05)
+
+
+def test_all_twelve_types_have_both_speed_and_power(cfg) -> None:
+    assert set(cfg.eexi["speed"]) == set(cfg.eexi["power"])
+    assert len(cfg.eexi["speed"]) == 12
+
+
+def test_cruise_row_uses_gt_not_dwt(cfg) -> None:
+    """Passing deadweight for that row silently returns a wrong number."""
+    assert cfg.eexi["speed"]["cruise"]["capacity"] == "gt"
+    assert cfg.eexi["power"]["cruise"]["capacity"] == "gt"
+
+
+def test_unmapped_ship_type_raises(cfg) -> None:
+    """§2.4 rule 3: no falling through to a default."""
+    with pytest.raises(MissingParameter, match="does not map"):
+        cfg.eexi_type("submarine")
 
 
 def test_estimate_a_fails_the_fleet_envelope(vessel, cfg) -> None:
@@ -101,36 +125,35 @@ def test_estimate_a_fails_the_fleet_envelope(vessel, cfg) -> None:
     This is a REPORTED RESULT. If this test ever starts failing because the estimate
     moved inside the envelope, the finding has been hidden, not fixed.
     """
-    assert specs.estimate_a_eexi(vessel, cfg.defaults).within_fleet_envelope is False
+    assert specs.estimate_a_eexi(vessel, cfg.defaults, cfg).within_fleet_envelope is False
 
 
 def test_estimate_a_is_marked_estimated(vessel, cfg) -> None:
-    assert specs.estimate_a_eexi(vessel, cfg.defaults).estimated is True
+    assert specs.estimate_a_eexi(vessel, cfg.defaults, cfg).estimated is True
 
 
 def test_speed_constants_cover_twelve_ship_types(cfg) -> None:
-    speed = cfg.defaults["eexi_curve_fit"]["speed"]
+    speed = cfg.eexi["speed"]
     assert len(speed) == 12
     assert {"bulk_carrier", "tanker", "vehicle", "ro_ro", "lng_carrier"} <= set(speed)
 
 
 def test_vehicle_carrier_speed_resolves(cfg) -> None:
     """RCC AMERICA, 21,182 DWT -> ~20 kn, plausible for a car carrier."""
-    row = cfg.defaults["eexi_curve_fit"]["speed"]["vehicle"]
+    row = cfg.eexi["speed"]["vehicle"]
     assert row["A"] * 21182 ** row["C"] == pytest.approx(19.96, abs=0.02)
 
 
-def test_power_table_is_containership_only_and_raises_otherwise(cfg) -> None:
-    """The P_ME table is separate and only its containership row is transcribed.
-
-    Borrowing it for another type would be an invented value.
-    """
-    assert set(cfg.defaults["eexi_curve_fit"]["power"]) == {"containership"}
+def test_vehicle_carrier_fully_resolves(cfg) -> None:
+    """RCC AMERICA, 21,182 DWT -- both speed and power now available."""
+    s, p = cfg.eexi["speed"]["vehicle"], cfg.eexi["power"]["vehicle"]
+    assert s["A"] * 21182 ** s["C"] == pytest.approx(19.96, abs=0.02)
+    assert p["D"] * 21182 ** p["F"] == pytest.approx(14_086, rel=0.01)
 
 
 def test_eexi_power_is_nearly_linear_in_deadweight(cfg) -> None:
     """D = 1.030 is why the curve fit breaks at the top of the container range."""
-    assert cfg.defaults["eexi_curve_fit"]["power"]["containership"]["D"] == pytest.approx(1.03)
+    assert cfg.eexi["power"]["containership"]["F"] == pytest.approx(1.03046)
 
 
 # ---------------------------------------------------------------------------
@@ -164,12 +187,18 @@ def test_estimate_b_sits_inside_the_fleet_envelope(vessel, cfg) -> None:
     assert specs.estimate_b_admiralty(vessel, cfg.defaults).within_fleet_envelope is True
 
 
-def test_estimate_b_power_is_far_below_estimate_a(vessel, cfg) -> None:
-    """~78,000 kW against 113,004 kW -- a 1.4x spread carried as uncertainty."""
-    a = specs.estimate_a_eexi(vessel, cfg.defaults)
+def test_estimates_agree_on_installed_power_but_not_on_speed(vessel, cfg) -> None:
+    """The corrected EEXI power (67,912 kW) sits just below Estimate B's Admiralty
+    range (69,600-85,100 kW) -- close agreement, as §2.2 says.
+
+    But they disagree on DESIGN SPEED, 25.55 against 22.62 kn, and load goes as
+    1/V^3. Agreeing on installed power is therefore not enough for the emissions to
+    agree: the 1.44x speed-cubed ratio is what drives them apart.
+    """
+    a = specs.estimate_a_eexi(vessel, cfg.defaults, cfg)
     b = specs.estimate_b_admiralty(vessel, cfg.defaults)
-    assert b.mcr_kw < a.mcr_kw
-    assert a.mcr_kw / b.mcr_kw == pytest.approx(1.44, abs=0.05)
+    assert a.mcr_kw / b.mcr_kw == pytest.approx(0.87, abs=0.03)
+    assert (a.design_speed_kn / b.design_speed_kn) ** 3 == pytest.approx(1.44, abs=0.03)
 
 
 def test_admiralty_relation_scales_as_speed_cubed() -> None:

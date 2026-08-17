@@ -29,7 +29,7 @@ Two consequences follow directly:
 
 **Why two vessels rather than one.** Vessel A alone produces a degenerate allocation result. Its flag, owner, ISM manager and commercial manager all resolve to China once Hong Kong is folded into China under the UNFCCC party list — so all four computable options return the same country and the comparison that motivates the paper produces nothing. Keeping Hong Kong separate yields a single flag-versus-owner divergence, but that rests entirely on a contestable methodological choice (§6.4).
 
-This is not a poorly chosen vessel; it is a *typical* one, and that is the point. The pair reproduces the paper's equity argument in miniature: **allocation choice is immaterial for the co-located majority and decisive for open-registry ships.** One vessel cannot show that. Two can, and the second also lands in a hull-size range where the EEXI power estimate is reliable (§2.2).
+This is not a poorly chosen vessel; it is a *typical* one, and that is the point. The pair reproduces the paper's equity argument in miniature: **allocation choice is immaterial for the co-located majority and decisive for open-registry ships.** One vessel cannot show that. Two can, and the second also sits below the EEXI cap thresholds, so its power estimate scales with its actual size rather than being pinned at the cap (§2.2).
 
 The pipeline is designed so that scaling from two vessels to the full fleet is a loop over an IMO list, not a rewrite.
 
@@ -110,7 +110,7 @@ Choose the study vessels by reproducible criteria rather than by hand, so a rese
 | 5 | Port calls in ≥3 countries | confirms international operation |
 | 6 | ≥1 EU port call | unlocks THETIS-MRV validation (§8.2) |
 | 7 | For vessel B: flag in an open registry **and** owner country ≠ flag country | produces the flag-versus-owner divergence under study |
-| 8 | For vessel B: deadweight in mid-range for its type | keeps the EEXI curve fit inside its reliable band |
+| 8 | For vessel B: deadweight below the EEXI cap for its type | above the cap the EEXI estimate is flat, so a capped hull gets a less size-specific figure (§2.4) |
 
 ### 0.2 Procedure
 
@@ -263,18 +263,29 @@ T   = 0.624 · DWT^0.27  →   15.8 m   (actual 16.0 m)
 
 ### 2.2 Design speed and installed power — three estimates
 
-**Estimate A — IMO EEXI curve fit** (Resolution MEPC.333(76), 2021). Power functions of deadweight with constants by ship type:
+**Estimate A — IMO EEXI curve fit.** Source: **IMO Resolution MEPC.333(76)**, *2021 Guidelines on the method of calculation of the attained Energy Efficiency Existing Ship Index (EEXI)*, adopted 17 June 2021 — **paragraph 2.2.3.5 and the Appendix**. The guidelines provide these for the case where "the speed-power curve is not available or the sea trial report does not contain the EEDI or design load draught condition".
 
 ```
-V     = A · DWT^B
-P_ME  = C · DWT^D          ← MEPC.333(76)'s own symbol; this is INSTALLED power, i.e. MCR
+V_ref,avg = A · B^C            [knots]
+MCR_avg   = D · E^F            [kW]
 ```
 
-Containership: A = 3.240, B = 0.183, C = 0.504, D = 1.030. For this hull: **V = 28.92 kn, MCR = 113,004 kW**.
+`B` and `E` are **not** simply DWT. They are DWT for most ship types, GT for cruise passenger ships, and for containerships they are **capped**. The full tables are reproduced in §2.4 because scaling this work to the fleet requires all twelve ship types, not one row.
 
-> The resolution writes `P_ME` for installed power, whereas the Fourth GHG Study writes `Ẇ_ME,i` for instantaneous demand. Downstream, this document always calls installed power `MCR`.
+For a containership: `A = 3.2395`, `B = min(DWT, 80 000)`, `C = 0.18294`; `D = 0.5042`, `E = min(DWT, 95 000)`, `F = 1.03046`.
 
-The method validates well across most of the fleet — 80,000 DWT bulk carrier → 14.46 kn / 10,672 kW; 300,000 DWT tanker → 16.08 kn / 26,000 kW; 50,000 DWT container ship → 23.47 kn / 34,863 kW. But `D = 1.030` makes power nearly *linear* in deadweight, which fails at the top of the container range where modern designs are deliberately under-powered for slow steaming. **The predicted 28.92 kn exceeds 24.5 kn, the maximum service speed among 215 distinct container designs built since 2015** (Cepowski & Chorab, Table 1). The estimate is outside the observed fleet envelope.
+Vessel A is 156,610 DWT, so both caps bind:
+
+```
+V_ref,avg = 3.2395 · 80 000^0.18294  = 25.55 kn
+MCR_avg   = 0.5042 · 95 000^1.03046  = 67 912 kW
+```
+
+> **Correction, recorded deliberately.** An earlier draft of this document took the coefficients from a secondary reproduction (Sun et al. 2026, Table 1) which prints them without the DWT caps and without the GT exception. Applying them uncapped gives 28.89 kn and 113,673 kW, and led to the conclusion that the EEXI method "fails at the top of the container range". **It does not.** The caps exist precisely to handle that range. Corrected, Estimate A (67,912 kW) agrees closely with Estimate B's Admiralty range (69,600–85,100 kW), where the uncapped figure had disagreed by a factor of 1.6. Always take these coefficients from the resolution, never from a reproduction.
+
+> Note also that MEPC.333(76) writes `P_ME` for installed power in other contexts, whereas the Fourth GHG Study writes `Ẇ_ME,i` for instantaneous demand. Downstream, this document always calls installed power `MCR`.
+
+The method validates well across the fleet — 80,000 DWT bulk carrier → 14.46 kn / 10,672 kW; 300,000 DWT tanker → 16.08 kn / 26,000 kW; 50,000 DWT container ship → 23.47 kn / 34,863 kW. The remaining tension is modest: 25.55 kn still sits just above 24.5 kn, the maximum service speed among 215 distinct container designs built since 2015 (Cepowski & Chorab, Table 1). That is a reference line fitted to a historical fleet, applied to a modern slow-steaming hull — a known and bounded bias, not a failure.
 
 **Estimate B — Admiralty coefficient, calibrated.** Design speed from the Froude number:
 
@@ -311,8 +322,55 @@ All three are carried through to the CO₂ result. The spread between them is a 
 
 The IMO study classifies engines from an IHS field unavailable to us, but states that **slow-speed diesel is the default for any oil-propelled ship not otherwise classifiable**, and Table 10 gives engine-type shares by year. A 13,200 TEU container ship built in 2014 is a two-stroke slow-speed diesel on any reading. Assigned SSD, documented as an assignment.
 
+### 2.4 EEXI estimation parameters — complete tables, all ship types
+
+Reproduced from **IMO Resolution MEPC.333(76), Appendix**. These belong in `config/eexi_parameters.yaml` as data, not in code, so that extending this work from two vessels to the full fleet requires no edit to the model.
+
+**Table 2.4a — Parameters to calculate `V_ref,avg`**, where `V_ref,avg = A · B^C` [knots]
+
+| Ship type | A | B | C |
+|---|---|---|---|
+| Bulk carrier | 10.6585 | DWT | 0.02706 |
+| Gas carrier | 7.4462 | DWT | 0.07604 |
+| Tanker | 8.1358 | DWT | 0.05383 |
+| **Containership** | 3.2395 | **min(DWT, 80 000)** | 0.18294 |
+| General cargo ship | 2.4538 | DWT | 0.18832 |
+| Refrigerated cargo carrier | 1.0600 | DWT | 0.31518 |
+| Combination carrier | 8.1391 | DWT | 0.05378 |
+| LNG carrier | 11.0536 | DWT | 0.05030 |
+| Ro-ro cargo ship (vehicle carrier) | 16.6773 | DWT | 0.01802 |
+| Ro-ro cargo ship | 8.0793 | DWT | 0.09123 |
+| Ro-ro passenger ship | 4.1140 | DWT | 0.19863 |
+| Cruise passenger ship, non-conventional propulsion | 5.1240 | **GT** | 0.12714 |
+
+**Table 2.4b — Parameters to calculate `MCR_avg`** (or `MPP_avg`), where `MCR_avg = D · E^F` [kW]
+
+| Ship type | D | E | F |
+|---|---|---|---|
+| Bulk carrier | 23.7510 | DWT | 0.54087 |
+| Gas carrier | 21.4704 | DWT | 0.59522 |
+| Tanker | 22.8415 | DWT | 0.55826 |
+| **Containership** | 0.5042 | **min(DWT, 95 000)** | 1.03046 |
+| General cargo ship | 0.8816 | DWT | 0.92050 |
+| Refrigerated cargo carrier | 0.0272 | DWT | 1.38634 |
+| Combination carrier | 22.8536 | DWT | 0.55820 |
+| LNG carrier | 20.7096 | DWT | 0.63477 |
+| Ro-ro cargo ship (vehicle carrier) | 262.7693 | DWT | 0.39973 |
+| Ro-ro cargo ship | 37.7708 | DWT | 0.63450 |
+| Ro-ro passenger ship | 9.1338 | DWT | 0.91116 |
+| Cruise passenger ship, non-conventional propulsion | 1.3550 | **GT** | 0.88664 |
+
+**Three implementation rules that a single-row extract would hide:**
+
+1. **Containerships are capped** — 80,000 DWT for speed, 95,000 DWT for power. Above the cap the estimate is flat, not extrapolated. This is the single most consequential detail in both tables.
+2. **Cruise passenger ships with non-conventional propulsion use GT, not DWT.** Passing DWT for that row silently returns a wrong number.
+3. **Ship-type strings must map to these twelve categories exactly.** GFW returns coarse types (`CARGO`, `TANKER`, `CARRIER`); Equasis returns finer ones (`Container Ship`, `Bulk Carrier`). The mapping between them belongs in config, and any unmapped type must raise rather than fall through to a default.
+
+⚠ Coefficients here carry the resolution's full precision. Secondary reproductions round them (10.658 for 10.6585, 0.541 for 0.54087) and, more importantly, drop the caps and the GT exception. Use this table.
+
 ### Outputs
 `config/vessel_specs.yaml` — one block per IMO, each parameter carrying a `value`, `source` and `method` field, so a researcher with IHS access can substitute observed values without touching model code.
+`config/eexi_parameters.yaml` — Tables 2.4a and 2.4b as data, with the cap and GT rules encoded.
 
 ---
 
@@ -630,7 +688,7 @@ THETIS-MRV is used **only** to validate, never as an input — it is EU-scope, a
 
 - Selin, H., Zhang, Y., Dunn, R., Selin, N.E., Lau, A.K.H. (2021). Mitigation of CO₂ emissions from international shipping through national allocation. *Environmental Research Letters* 16, 045009. doi:10.1088/1748-9326/abec02
 - IMO (2020). *Fourth IMO Greenhouse Gas Study 2020* — Tables 10, 16, 17, 19, 20, 21; equations 10 and 11.
-- IMO (2021). *Calculation of the Attained Energy Efficiency Existing Ship Index (EEXI)*, Resolution MEPC.333(76) — curve-fitting constants.
+- IMO (2021). *2021 Guidelines on the method of calculation of the attained Energy Efficiency Existing Ship Index (EEXI)*, Resolution MEPC.333(76), adopted 17 June 2021 — paragraph 2.2.3.5 and Appendix, Tables of parameters for `V_ref,avg` and `MCR_avg`. Primary source; consulted directly. https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.333(76).pdf
 - Sun, R., Abouarghoub, W., Demir, E., Potter, A. (2026). Impact of imputation methods for ship technical parameters on emission estimations in ports. *Maritime Policy & Management* 53(1), 70–92.
 - Cepowski, T., Chorab, P. (2021). Determination of design formulas for container ships at the preliminary design stage. *Ocean Engineering* 238, 109727.
 - Charchalis, A. (2014). Determination of main dimensions and estimation of propulsion power of a ship. *Journal of KONES* 21(2), 39–44.

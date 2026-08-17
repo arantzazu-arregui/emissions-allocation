@@ -1,0 +1,86 @@
+# EEXI estimation parameters -- IMO Resolution MEPC.333(76), Appendix.
+#
+# Reproduced from docs/METHODOLOGY.md §2.4, Tables 2.4a and 2.4b. The methodology
+# names this file explicitly as an output of §2, precisely so that extending the
+# work from two vessels to the full fleet requires no edit to model code.
+#
+#     V_ref,avg = A * B^C     [knots]
+#     MCR_avg   = D * E^F     [kW]
+#
+# B and E are the CAPACITY PARAMETER. They are not simply deadweight:
+#
+#   * Containerships CAP them -- 80,000 DWT for speed, 95,000 DWT for power. Above
+#     the cap the estimate is FLAT, not extrapolated. This is the single most
+#     consequential detail in both tables and the one secondary reproductions drop.
+#   * Cruise passenger ships with non-conventional propulsion use GT, NOT DWT.
+#     Passing deadweight for that row silently returns a wrong number.
+#
+# Coefficients carry the resolution's full precision. Secondary reproductions round
+# them (10.658 for 10.6585, 0.541 for 0.54087) and drop the caps. Use these.
+
+source:
+  document: "IMO Resolution MEPC.333(76) (2021), Appendix"
+  via: "docs/METHODOLOGY.md §2.4, Tables 2.4a and 2.4b"
+  note: >
+    Take these from the resolution, never from a reproduction. Sun et al. (2026)
+    Table 1 prints them without the DWT caps and without the GT exception; applying
+    that version to vessel A gave 28.89 kn and 113,673 kW instead of 25.55 kn and
+    67,912 kW, a 1.6x error in installed power, and produced a wrong conclusion
+    about the method's validity.
+
+# --- Table 2.4a: V_ref,avg = A * B^C ---------------------------------------
+speed:
+  bulk_carrier:        {A: 10.6585, capacity: dwt, C: 0.02706}
+  gas_carrier:         {A:  7.4462, capacity: dwt, C: 0.07604}
+  tanker:              {A:  8.1358, capacity: dwt, C: 0.05383}
+  containership:       {A:  3.2395, capacity: dwt, C: 0.18294, capacity_cap: 80000}
+  general_cargo:       {A:  2.4538, capacity: dwt, C: 0.18832}
+  refrigerated_bulk:   {A:  1.0600, capacity: dwt, C: 0.31518}
+  combination_carrier: {A:  8.1391, capacity: dwt, C: 0.05378}
+  lng_carrier:         {A: 11.0536, capacity: dwt, C: 0.05030}
+  vehicle:             {A: 16.6773, capacity: dwt, C: 0.01802}   # ro-ro cargo (vehicle carrier)
+  ro_ro:               {A:  8.0793, capacity: dwt, C: 0.09123}
+  ferry_ropax:         {A:  4.1140, capacity: dwt, C: 0.19863}   # ro-ro passenger ship
+  cruise:              {A:  5.1240, capacity: gt,  C: 0.12714}   # non-conventional propulsion
+
+# --- Table 2.4b: MCR_avg = D * E^F -----------------------------------------
+power:
+  bulk_carrier:        {D:  23.7510, capacity: dwt, F: 0.54087}
+  gas_carrier:         {D:  21.4704, capacity: dwt, F: 0.59522}
+  tanker:              {D:  22.8415, capacity: dwt, F: 0.55826}
+  containership:       {D:   0.5042, capacity: dwt, F: 1.03046, capacity_cap: 95000}
+  general_cargo:       {D:   0.8816, capacity: dwt, F: 0.92050}
+  refrigerated_bulk:   {D:   0.0272, capacity: dwt, F: 1.38634}
+  combination_carrier: {D:  22.8536, capacity: dwt, F: 0.55820}
+  lng_carrier:         {D:  20.7096, capacity: dwt, F: 0.63477}
+  vehicle:             {D: 262.7693, capacity: dwt, F: 0.39973}
+  ro_ro:               {D:  37.7708, capacity: dwt, F: 0.63450}
+  ferry_ropax:         {D:   9.1338, capacity: dwt, F: 0.91116}
+  cruise:              {D:   1.3550, capacity: gt,  F: 0.88664}
+
+# --- §2.4 rule 3: ship-type strings must map to these twelve categories -----
+# GFW returns coarse types (CARGO, TANKER, CARRIER); Equasis returns finer ones
+# (Container Ship, Bulk Carrier, Vehicles Carrier). The mapping belongs here, and
+# any unmapped type MUST raise rather than fall through to a default.
+ship_type_aliases:
+  container: containership
+  container_ship: containership
+  vehicles_carrier: vehicle
+  vehicle_carrier: vehicle
+  ro_ro_cargo: ro_ro
+  ro_ro_passenger: ferry_ropax
+  oil_tanker: tanker
+  chemical_tanker: tanker
+  liquefied_gas_tanker: gas_carrier
+  refrigerated_cargo_carrier: refrigerated_bulk
+  cruise_passenger: cruise
+
+# §2.2.7 of the same resolution. A cubic capacity correction applies to vehicle
+# carriers with DWT/GT < 0.35, because deadweight understates them:
+#     f_cVEHICLE = ((DWT/GT) / 0.35)^-0.8
+# Neither pilot hull triggers it -- COSCO ITALY 1.013, RCC AMERICA 0.367 -- but its
+# existence is the resolution's own evidence that DWT is a poor size proxy here.
+vehicle_capacity_correction:
+  threshold_dwt_gt: 0.35
+  exponent: -0.8
+  applies_when: "DWT/GT < 0.35"

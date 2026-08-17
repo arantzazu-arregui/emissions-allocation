@@ -190,6 +190,7 @@ class Config:
     spatial: dict[str, Path]
     spatial_layers: dict[str, str]
     territory_alignment: dict[str, Any]
+    eexi: dict[str, Any]
     validation: dict[str, Any]
     defaults: dict[str, Any]
     factors: dict[str, Any]
@@ -280,6 +281,24 @@ class Config:
             # Taiwan's 262 Mt moves under it too, not just Hong Kong's 33 Mt.
             return name if hk_treatment == "separate" else sensitivity["parent"]
         return (alignment.get("merge_into") or {}).get(name, name)
+
+    def eexi_type(self, ship_type: str) -> str:
+        """Map a ship-type string to one of MEPC.333(76)'s twelve categories.
+
+        §2.4 rule 3: any unmapped type must raise rather than fall through to a
+        default, because a silently wrong category returns a plausible number.
+        """
+        aliases = self.eexi.get("ship_type_aliases") or {}
+        key = aliases.get(ship_type, ship_type)
+        if key not in (self.eexi.get("speed") or {}):
+            raise MissingParameter(
+                f"ship type {ship_type!r} does not map to any MEPC.333(76) category.\n"
+                f"  Known categories: {sorted(self.eexi.get('speed') or {})}\n"
+                f"  Add an entry to ship_type_aliases in config/eexi_parameters.yaml. "
+                "No default is substituted -- a wrong category returns a plausible "
+                "number with nothing to flag it."
+            )
+        return key
 
     def spatial_inner(self, key: str) -> str | None:
         """Path to the layer inside the archive, if config names one."""
@@ -376,6 +395,7 @@ def load_config(config_dir: Path | None = None) -> Config:
     pilot = _load_yaml(cfg_dir / "pilot.yaml")
     vessel_specs = _load_yaml(cfg_dir / "vessel_specs.yaml")
     factors = _load_yaml(cfg_dir / "emission_factors.yaml")
+    eexi = _load_yaml(cfg_dir / "eexi_parameters.yaml")
 
     study = pilot.get("study") or {}
     for key in ("start_date", "end_date"):
@@ -437,6 +457,7 @@ def load_config(config_dir: Path | None = None) -> Config:
         spatial=spatial,
         spatial_layers=layers,
         territory_alignment=pilot.get("territory_alignment") or {},
+        eexi=eexi,
         validation=pilot.get("validation") or {},
         defaults=vessel_specs.get("defaults") or {},
         factors=factors,

@@ -19,7 +19,8 @@ PIPELINE_MODULES = [
     "validate.py",
 ]
 
-CONFIG_FILES = ["pilot.yaml", "vessel_specs.yaml", "emission_factors.yaml"]
+CONFIG_FILES = ["pilot.yaml", "vessel_specs.yaml", "emission_factors.yaml",
+                "eexi_parameters.yaml"]
 
 SUPERSEDED = ["fetch_presence.py", "analyze_presence.py", "make_sample.py"]
 

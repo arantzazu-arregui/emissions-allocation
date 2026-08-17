@@ -115,64 +115,62 @@ def validate_hull_relations(vessel: Vessel, defaults: dict[str, Any]) -> dict[st
 # ---------------------------------------------------------------------------
 
 
-def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimate:
-    """``V = A * capacity^C`` and ``MCR = C * DWT^D`` -- MEPC.333(76).
+def _capacity(vessel: Vessel, row: dict[str, Any]) -> float:
+    """The capacity parameter for one MEPC.333(76) row, with its cap applied.
 
-    **The capacity parameter is not always plain deadweight.** Containerships cap it
-    at 80,000 DWT, and the source states the cap explicitly. Applying the uncapped
-    value to vessel A gave 28.89 kn instead of 25.55 kn, and since main-engine load
-    goes as ``(SOG/V)^3`` that understated load by a factor of 1.45. The cap is the
-    resolution's own acknowledgement that the relation breaks down for large
-    container ships.
-
-    Raises:
-        MissingParameter: If the ship type's constants are not transcribed. Speed
-            rows exist for twelve types; the power table has only containership, so
-            a bulk carrier or car carrier raises here rather than borrowing them.
+    Not simply deadweight: containerships cap it (80,000 for speed, 95,000 for
+    power) and cruise ships with non-conventional propulsion use GT. Both rules
+    come from the resolution and both silently return a wrong number if ignored.
     """
-    ship_type = vessel.require_spec("ship_type")
-    block = defaults["eexi_curve_fit"]
-    key = {"container": "containership"}.get(ship_type, ship_type)
+    value = vessel.require_spec("gt" if row.get("capacity") == "gt" else "dwt")
+    cap = row.get("capacity_cap")
+    return min(value, cap) if cap else value
 
-    speed_row = (block.get("speed") or {}).get(key)
-    if not speed_row:
+
+def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any], cfg: Config | None = None) -> PowerEstimate:
+    """``V_ref,avg = A*B^C`` and ``MCR_avg = D*E^F`` -- MEPC.333(76), Appendix.
+
+    Both tables come from ``config/eexi_parameters.yaml``, which carries all twelve
+    ship types at the resolution's full precision, with the containership caps and
+    the cruise GT exception encoded.
+
+    For vessel A both caps bind: 156,610 DWT gives 25.55 kn on min(DWT, 80,000) and
+    67,912 kW on min(DWT, 95,000). Applying them uncapped returns 28.89 kn and
+    113,673 kW -- a 1.6x error in installed power, and the reason an earlier reading
+    concluded the method "fails at the top of the container range". It does not; the
+    caps exist for that range.
+    """
+    if cfg is None:
         raise MissingParameter(
-            f"MEPC.333(76) speed constants for ship type {ship_type!r} are not in "
-            f"config/vessel_specs.yaml (defaults.eexi_curve_fit.speed.{key}).\n"
-            f"  Known types: {sorted((block.get('speed') or {}))}"
+            "estimate_a_eexi needs the Config to resolve MEPC.333(76) parameters "
+            "from config/eexi_parameters.yaml"
         )
-    power_row = (block.get("power") or {}).get(key)
-    if not power_row:
-        raise MissingParameter(
-            f"MEPC.333(76) installed-power constants for ship type {ship_type!r} are "
-            f"not transcribed (defaults.eexi_curve_fit.power.{key}).\n"
-            "  The speed table is present but the P_ME table is a separate table in "
-            "the same resolution and has not been read.\n"
-            "  Borrowing the containership row would be an invented value: no default "
-            "is substituted."
-        )
+    key = cfg.eexi_type(vessel.require_spec("ship_type"))
+    speed_row = cfg.eexi["speed"][key]
+    power_row = cfg.eexi["power"][key]
 
-    capacity_field = speed_row.get("capacity", "dwt")
-    capacity = vessel.require_spec("gt" if capacity_field == "gt" else "dwt")
-    cap = speed_row.get("capacity_cap")
-    capped = min(capacity, cap) if cap else capacity
+    speed = speed_row["A"] * _capacity(vessel, speed_row) ** speed_row["C"]
+    mcr = power_row["D"] * _capacity(vessel, power_row) ** power_row["F"]
 
-    speed = speed_row["A"] * capped ** speed_row["C"]
-    mcr = power_row["C"] * vessel.require_spec("dwt") ** power_row["D"]
-
-    method = (
-        f"V = {speed_row['A']} * {capacity_field}^{speed_row['C']}"
-        + (f" with {capacity_field} capped at {cap:,}" if cap else "")
-        + f"; MCR = {power_row['C']} * dwt^{power_row['D']}"
-    )
     return PowerEstimate(
         label="A (EEXI curve fit)",
         design_speed_kn=speed,
         mcr_kw=mcr,
-        source=block["source"],
-        method=method,
+        source=f"{cfg.eexi['source']['document']} (via {cfg.eexi['source']['via']})",
+        method=(
+            f"V = {speed_row['A']} * {speed_row.get('capacity','dwt')}"
+            f"{f'(cap {speed_row["capacity_cap"]:,})' if speed_row.get('capacity_cap') else ''}"
+            f"^{speed_row['C']}; "
+            f"MCR = {power_row['D']} * {power_row.get('capacity','dwt')}"
+            f"{f'(cap {power_row["capacity_cap"]:,})' if power_row.get('capacity_cap') else ''}"
+            f"^{power_row['F']}"
+        ),
         within_fleet_envelope=check_fleet_envelope(speed, defaults),
-        variants={"capacity": capacity, "capacity_used": capped, "cap": cap},
+        variants={
+            "eexi_type": key,
+            "capacity_speed": _capacity(vessel, speed_row),
+            "capacity_power": _capacity(vessel, power_row),
+        },
     )
 
 
@@ -343,7 +341,8 @@ def build_estimates(vessel: Vessel, cfg: Config) -> dict[str, PowerEstimate]:
                 f"unknown power estimate {name!r} in config/pilot.yaml "
                 f"run.power_estimates. Known: {sorted(_BUILDERS)}"
             )
-        out[name] = builder(vessel, cfg.defaults)
+        out[name] = (builder(vessel, cfg.defaults, cfg) if name == "A"
+                     else builder(vessel, cfg.defaults))
     return out
 
 

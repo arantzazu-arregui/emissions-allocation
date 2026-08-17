@@ -277,7 +277,8 @@ def test_even_smoothing_window_is_rejected(tmp_path) -> None:
     from pathlib import Path
 
     source = Path(__file__).resolve().parents[1] / "config"
-    for name in ("pilot.yaml", "vessel_specs.yaml", "emission_factors.yaml"):
+    for name in ("pilot.yaml", "vessel_specs.yaml", "emission_factors.yaml",
+                 "eexi_parameters.yaml"):
         shutil.copy(source / name, tmp_path / name)
 
     pilot = (tmp_path / "pilot.yaml").read_text(encoding="utf-8")

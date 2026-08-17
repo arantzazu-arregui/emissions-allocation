@@ -14,7 +14,7 @@ A two-vessel replication of Selin et al. (2021), *Mitigation of CO₂ emissions 
 
 ## Environment
 
-- Python venv at `.venv`; `requirements.txt` at root. **geopandas/shapely/pyogrio are NOT used** — DuckDB's `spatial` extension reads GeoPackage and shapefile through GDAL, including from inside a zip via `/vsizip/`, which keeps every point-in-polygon and distance operation in `src/emissions_allocation/sql/*.sql`. The extension downloads itself on first use.
+- Python venv at `.venv`; `requirements.txt` at root. `geopandas`, `shapely`, `pyogrio` are **not yet installed** and are needed for §4–5.
 - GFW token in `.env` as `GFW_TOKEN`. Free non-commercial licence. **Never commit it.**
 - Quota: ~50,000 requests/day, **1 concurrent 4Wings report** (429 otherwise), report results retained 30 minutes.
 - `data/external/` holds downloaded source data — treat as **read-only inputs**, never regenerate.
@@ -122,7 +122,11 @@ Also:
 - **THETIS-MRV is EU-scope** — validation only, never an input. The project allocates globally.
 - **Bunker-fuel allocation is not computable** at two vessels. It needs national fuel-sales statistics. Out of scope by construction, not by omission.
 
-**When a source is a PDF and a number seems missing, render the page before concluding it isn't there.** Equations and tables are frequently images that text extraction drops silently. This has happened three times in this project.
+**Two source-handling rules, each learned the hard way in this project.**
+
+**Render the page before concluding a number isn't there.** Equations and tables are frequently images that text extraction drops silently. This has happened three times here.
+
+**Never take coefficients from a paper that reproduces a standard — go to the standard.** Sun et al. (2026) reproduce the MEPC.333(76) EEXI table faithfully in appearance but drop the containership DWT caps and the GT exception for cruise ships. Using their version gave vessel A a 1.6x error in installed power and produced a wrong conclusion about the method's validity. The primary document is free and takes two minutes to check.
 
 ---
 
@@ -151,7 +155,14 @@ Also:
 
 **IMO 2020 sulphur cap is immaterial to CO₂** — low-sulphur HFO carries the same carbon content and factor as HFO. Scrubber fitting affects SOx only.
 
-**EEXI curve fit (MEPC.333(76)):** `V = A·DWT^B`, `P_ME = C·DWT^D`. Containership A=3.240 B=0.183 C=0.504 D=1.030. Validates well for bulk carriers and tankers across their range and for container ships up to ~50,000 DWT; **fails at the top of the container range** — returns 28.92 kn for vessel A, above the 24.5 kn maximum of the modern container fleet.
+**EEXI curve fit — take from the resolution, never from a reproduction.** Primary source: [MEPC.333(76)](https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.333(76).pdf), paragraph 2.2.3.5 and Appendix. `V_ref,avg = A·B^C`, `MCR_avg = D·E^F`. Full 12-row tables are in `docs/METHODOLOGY.md` §2.4 and belong in `config/eexi_parameters.yaml`.
+
+Three details that secondary reproductions (e.g. Sun et al. 2026 Table 1) drop, and that silently produce wrong numbers:
+1. **Containerships are capped** — `B = min(DWT, 80 000)` for speed, `E = min(DWT, 95 000)` for power. Above the cap the estimate is flat.
+2. **Cruise passenger ships with non-conventional propulsion use GT, not DWT.**
+3. Coefficients carry 5–6 significant figures (10.6585, not 10.658).
+
+Vessel A is 156,610 DWT so both caps bind: **V = 25.55 kn, MCR = 67,912 kW**. Uncapped it would give 28.89 kn / 113,673 kW — a 1.6× error, and the reason an earlier draft wrongly concluded the method "fails at the top of the container range". It does not; the caps exist for that range. Corrected, it agrees with the Admiralty estimate (69,600–85,100 kW).
 
 **Admiralty coefficient**, calibrated on Charchalis Table 1 (17 ships): median **482**, mean 478, sd 57, range 352–593.
 
@@ -175,64 +186,13 @@ Must be an open-registry hull (PAN/LBR/MHL/MLT/BHS/CYP) with owner country ≠ f
 
 ## Open items
 
-1. **Vessel B selection** — run METHODOLOGY §0.2 (steps 1–4 automated), then Equasis for criterion 7, its allocation keys and DWT. Until then the allocation is degenerate.
-2. ~~Selin supplementary Table 1~~ — **CLOSED**. `data/external/paper/erlabec02supp2.xls` carries 199 countries with **no Hong Kong row**, and no Taiwan or Macao: aligned to the UNFCCC party list. The paper **folds Hong Kong into China**, so `folded_into_china` is the replication-faithful treatment. Both still computed.
-3. ~~Coastline layer~~ — **CLOSED**. Marine and Land Zones v4 ships as `EEZ_land_union` (land merged with EEZ), so it is not a coastline. Land is derived as `union MINUS eez_v12` joined on `MRGID_EEZ` → 253 polygons. Caveat: EEZ v12 starts at the territorial-sea baseline, so internal waters read as land; affects 0.2% of vessel A's positions, all in harbours. The IMO study uses Natural Earth shorelines, which would avoid this.
-4. **Sourced installed power and service speed** per hull, for estimate C. No free source found; raises on use.
-5. ~~Smoothing window validated on one day~~ — now measured across the full series: v³ bias **1.94× unsmoothed, 1.38× at w=3**, lowest at w=3. Larger than the one-day sample suggested (1.67×/1.19×), and not directly comparable — the published figures covered one cruising day, this covers the whole series including port time.
-6. **Joint-regime / overlapping-claim EEZ rule** — 56 polygons. Default `ISO_SOV1` with affected hours reported separately; the supplementary table turns out not to resolve it.
-7. **Deliverable format** — notebook at `notebooks/01_methodology_walkthrough.ipynb`, generated by `notebooks/build_notebook.py`.
-
-## THETIS-MRV: the first external validation, and what it says
-
-Downloaded 2026-08-16 for IMO 9516454. **Only 2018 and 2019 exist** — EU MRV
-monitoring began 1 January 2018 (so no 2017), and the hull made **zero EU calls from
-2020 onward**, which GFW port-visit data independently confirms (EU calls: 23 in
-2017, 8 in 2018, 4 in 2019, then none). Two independent sources agreeing the vessel
-left the Europe trade after 2019 is itself a validation of the port-call extraction.
-
-| RP | verified CO2 (t) |
-|---|---|
-| 2018 | 61,414.5862 |
-| 2019 | 35,594.2757 |
-
-**GFW port visits are NOT MRV "ports of call".** MRV counts a voyage from the *last
-port of call* to an EEA port, and its definition of port of call **excludes stops at
-anchorage**. GFW records Suez Canal transit anchorages (`egy-suezsouthanchorage`,
-`egy-portsaid`, both `at_dock: false`) as port visits, so a naive leg reconstruction
-breaks the Asia→Europe voyage at Suez and counts only the short Suez→Europe portion.
-That undercounts MRV scope by ~4x. **321 of 389 GFW port visits are not at dock.**
-
-Rebuilding MRV scope from `at_dock` calls only:
-
-| year | estimate A | estimate B | verified | A ratio | B ratio |
-|---|---|---|---|---|---|
-| 2018 | 45,890 t | **60,363 t** | 61,415 t | 0.75x | **0.98x** |
-| 2019 | — | — | 35,594 t | reconstruction fails |
-
-**Estimate B matches verified emissions to within 2% for 2018; estimate A understates
-by 25%.** This is the first evidence able to choose between the two power estimates,
-and it favours B — the one that also passes the fleet-envelope check. Treat as
-indicative, not settled: one year, and the 2019 reconstruction returns zero because
-`at_dock` flags only 68 of 389 calls and none of the 2019 EU calls.
-
-Next step: wire the dock-based scope reconstruction into `validate.compare_thetis_mrv`,
-and find a better port-of-call signal than `at_dock`.
-
-## Findings that contradict METHODOLOGY.md
-
-Recorded because the specification was written before implementation.
-
-| § | Finding |
-|---|---|
-| §1.7, §4.5 | **Coverage is not negligible.** Assumed so from 2024 alone (99.98%); measured 36%–99.98% across the period. Two contiguous lay-ups (2018-05-19→07-29, 71 d; 2019-06-10→2020-03-18, 282 d) with zero presence AND zero port calls. A uniform `E/coverage` correction would multiply 2019 by 2.77× for a hull that was not sailing. Gaps are now classified before correcting; the divisor is `coverage_active`. |
-| §4.1 | **Table 16's 'Port 1–5 nm' column is tanker-only** — footnoted in the source, dropped in METHODOLOGY. Applying it to a container ship would allow At berth up to 5 nm out. |
-| §4.1 | **At berth cannot be found from anchorage distance.** GFW anchorage coordinates sit off the berth: 1,143 h at berth against 17,427 h inside port visits. Port-visit intervals are used instead (`run.use_port_visit_intervals`), moving ~16,000 h to the correct auxiliary load — worth 0.6% of total CO₂. |
-| §4.1/§4.2 | **The mode matrix is circular as written** — mode needs load, load-zeroing needs mode. Resolved by computing load from smoothed speed first; consistent because the matrix consults load only above 3 kn. |
-| §1.5/§1.7 | **Gap-fill ordering is unspecified.** Nearest-neighbour position fill before speed derivation manufactures zeros. Order used: spine → position fill → derive on observed pairs with true Δt → linear speed fill. |
-| §2.2 | **Estimate B's power range is wider than quoted.** 69,600–85,100 kW comes from rounding the Froude speeds to 22–23 kn; the full 21.48–23.75 kn range gives 64,788–93,656 kW. |
-| §2 | GT disagrees: Equasis 154,592 vs GFW `tonnageGt` 153,666. Not a model input; both recorded. |
-| §1/§8.2 | **GFW splits one port stay into several "visits"** as a hull shifts between adjacent anchorage polygons. 41 of 388 legs are under 2 h, all same-country, concentrated in the Pearl River Delta and Yangshan (10 are `chn-yangshan` → `chn-yangshan`, the same port id). Five imply >30 kn, because the distance is measured between the two ports' representative anchorage points while the vessel barely moved. Worth 1.0 h of 52,292 leg-hours and 21 misclassified vessel-hours — no material effect. **Diagnosed, not merged**: merging would need an invented threshold for "the same call" and would break the 389-port-call validation figure. A cross-border impossible leg would be a real fault and still WARNs. |
+1. **Vessel B selection** — run METHODOLOGY §0.2, then Equasis for its allocation keys and DWT.
+2. **Selin et al. supplementary Table 1** (`stacks.iop.org/ERL/16/045009/mmedia`) — governs territory merging and the Hong Kong decision.
+3. **Coastline layer** for distance-to-coast in the operating-mode matrix — Marine Regions *Marine and Land Zones v4*.
+4. **Sourced installed power and service speed** per hull, for estimate C.
+5. **Smoothing window** validated on more than one day.
+6. **Joint-regime / overlapping-claim EEZ rule** — 56 polygons affected.
+7. **Deliverable format** and fleet-readiness vs pilot legibility.
 
 ---
 
