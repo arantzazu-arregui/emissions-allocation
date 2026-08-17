@@ -14,27 +14,33 @@ an IMO list in `config/pilot.yaml`, not an edit to model code.
 
 ## What it produces
 
-For vessel A (COSCO ITALY, IMO 9516454), 2017–2024:
+Two vessels, 2017–2024, chosen to sit on opposite sides of the paper's central finding:
 
-| | estimate A (EEXI curve fit) | estimate B (Admiralty) |
+| | COSCO ITALY (9516454) | RCC AMERICA (9277802) |
 |---|---|---|
-| 8-year CO₂ | 736,770 t | 969,081 t |
-| 2024 | 95,178 t | 126,061 t |
-| design speed | 28.92 kn — **outside fleet envelope** | 22.62 kn |
+| type | container, 156,610 DWT | vehicles carrier, 21,182 DWT |
+| flag | Hong Kong | Bahamas |
+| owner / manager / operator | China / China / China | Isle of Man / Greece / Isle of Man |
+| **national budgets** | **1** (folded) | **3** |
+| 8-year CO₂, w=3 | 642,683 t (A) / 969,081 t (B) | 256,011 t (A) |
 
-The spread is a **reported result, not an error**: no free source supplies installed power or
-design speed, so no estimate is primary.
+**That contrast is the result.** Allocation choice is immaterial for the co-located majority
+— 74% of ships in Selin et al., covering 61% of emissions — and decisive for open-registry
+ships. Two hulls show it; one cannot.
 
-The headline methodological finding, from §7 — identical emissions, two territory
-conventions:
+The spread between power estimates is a **reported result, not an error**: no free source
+supplies installed power or design speed, so no estimate is primary. Against EMSA-verified
+emissions, estimate A understates vessel A by 36% while estimate B matches within 2%.
+
+A second methodological finding, from §6.4 — identical emissions, two territory conventions:
 
 | Hong Kong treatment | baseline | ΔE% |
 |---|---|---|
-| separate | 33.3 Mt CO₂ | 0.287–0.380% |
-| folded into China | 12,322 Mt CO₂ | 0.0008–0.0010% |
+| separate | 33.3 Mt CO₂ | ~0.3% |
+| folded into China | 12,322 Mt CO₂ | ~0.001% |
 
 A ~370× swing in a country's reported burden from a convention choice, not from anything the
-ship did.
+ship did. The Isle of Man raises the same question for RCC AMERICA's owner.
 
 ## Start here
 
@@ -84,7 +90,7 @@ docs/         METHODOLOGY.md is the specification; data_sources.md the handling 
 notebooks/    the §0–§8 walkthrough, plus the script that generates it
 scripts/      run_pipeline.py; exploratory/ holds the API probes as provenance
 src/          one module per methodology section; sql/ holds every join and aggregation
-tests/        266 tests
+tests/        307 tests
 ```
 
 Python owns API access, parsing and the physical model. DuckDB owns spatial joins,
@@ -101,10 +107,12 @@ pytest
 
 Nothing here is defaulted. Each surfaces as a named error or a PENDING marker.
 
-- **Vessel B is not selected.** §0.2 steps 1–4 are automated; step 5 needs an Equasis login.
-  Until then the allocation is degenerate — all four options resolve to one budget.
 - **Estimate C** (sourced installed power and service speed) has no free source and raises.
-- **THETIS-MRV** validation is PENDING; annual CO₂ is unverified against external data.
+  Vessel B runs on estimate A alone, which external validation shows understates.
+- **Estimate B has no calibration for non-container hulls.** `C_adm` comes from 17 container
+  ships; it raises for any other hull form rather than extrapolating.
+- **THETIS-MRV** covers vessel A for 2018–2019 only — the hull stopped calling at EU ports
+  after 2019, which GFW port-call data independently confirms. Vessel B is unverified.
 
 ## Attribution
 

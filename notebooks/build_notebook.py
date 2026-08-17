@@ -56,11 +56,13 @@ unsure which is which.
 ## Scope, honestly
 
 Two vessels demonstrate the *machinery* of national allocation. They cannot reproduce the
-paper's *findings*, which are distributional. Vessel B has not yet been selected, so what
-follows is n = 1 — and vessel A's allocation is **degenerate**: all four options resolve to
-one national budget. That is not a poorly chosen ship. It is a *typical* one, and it is the
-point Selin et al. make: allocation choice is immaterial for the co-located majority and
-decisive for open-registry ships.
+paper's *findings*, which are distributional — top-20 rankings, concentration shares, the
+OECD split. Those need the full fleet.
+
+What two vessels **can** show is the paper's equity argument in miniature, and they do:
+COSCO ITALY's four allocation options collapse onto one national budget, while RCC AMERICA's
+land on three. Allocation choice is immaterial for the co-located majority and decisive for
+open-registry ships.
 """)
 
 code("""
@@ -104,13 +106,19 @@ hand, so a researcher extending this work applies the same filter to any number 
 Candidate discovery cannot use the ship-name filter, because names are what we are searching
 *for*. It uses `flag` and `vessel_type` instead — the other two presence filters that bind.
 
-### Status: vessel A fixed, vessel B not selected
+### Both vessels selected
 
-`selection.py` implements §0.2 steps 1–4. **Step 5 cannot be automated**: criterion 7
-(registered-owner country ≠ flag country) requires Equasis, which needs a logged-in account
-and publishes no API. The stage produces a ranked shortlist for manual completion.
+`selection.py` runs §0.2 steps 1–4 against the live API. Discovery pooled **15,417 distinct
+IMOs** across eight sample days and six open registries, narrowed to those with a distinct
+name present in every year and a Europe rotation, then pulled port-call data for the
+shortlist.
 
-The consequence is visible throughout §5–§7 below and is stated rather than worked around.
+**Step 5 cannot be automated.** Criterion 7 — registered-owner country ≠ flag country, the
+whole point of vessel B — requires Equasis, which needs a logged-in account and publishes no
+API. That step was closed by hand.
+
+No IMO number anywhere in this project is recalled or invented; every candidate came from a
+live presence query.
 """)
 
 code("""
@@ -332,7 +340,7 @@ result so a reader can see what an out-of-envelope power assumption does.
 """)
 
 code("""
-env = cfg.defaults["container_fleet_speed_envelope"]
+env = cfg.defaults["fleet_speed_envelope"][vessel.require_spec("ship_type")]
 fig, ax = plt.subplots(figsize=(11, 4))
 ax.axhspan(env["min_kn"], env["max_kn"], color="tab:green", alpha=0.12,
            label=f"observed fleet envelope {env['min_kn']}–{env['max_kn']} kn")
@@ -680,15 +688,29 @@ This is the headline methodological result. **Identical emissions, two territory
 conventions**: the same tonnage is a ~370× larger share of Hong Kong's budget than of
 China's. Nothing the ship did changes; only the convention does.
 
-With vessel B absent, the four rules cannot diverge — under the paper's own treatment they
-all resolve to China. That degeneracy is the finding at n = 1, and it is exactly why
-`docs/METHODOLOGY.md` argues a second, open-registry hull is what makes the comparison
-interpretable.
+**Two vessels, opposite behaviour under the same rules.** This is the paper's equity
+finding reproduced at n = 2:
+
+* **COSCO ITALY** — a Hong Kong flag with all three commercial roles in China. Under the
+  paper's own territory alignment all four options land on **one** national budget. The
+  choice of allocation rule is *immaterial* for this hull.
+* **RCC AMERICA** — a Bahamas flag, an Isle of Man owner and operator, a Greek manager.
+  The four options land on **three** budgets. The choice of rule is *decisive*.
+
+Neither is exceptional. Selin et al. find 74% of ships have owner, operator and manager
+in one country, covering 61% of emissions — the co-located majority COSCO ITALY belongs
+to. The ships the rule moves are systematically those on open registries, and RCC AMERICA
+is one of them.
 """)
 
 code("""
 im = pd.read_parquet(INTERIM / "impacts.parquet")
 view = im[(im.smoothing_window == 3) & (im.year == 2024)]
+
+print("Allocation keys side by side -- the qualitative result at n = 2:")
+for treatment in cfg.run["hk_treatments"]:
+    summary = allocation.summarise_options(cfg, treatment)
+    display(summary.style.set_caption(f"§5.1  allocation keys, HK treatment: {treatment}"))
 
 display(view[["option", "country", "gcb_name", "hk_treatment", "power_estimate",
               "delta_e_mt", "baseline_mt", "delta_e_pct"]]

@@ -220,21 +220,28 @@ def stage_specs(cfg, args) -> None:
 
     for vessel in cfg:
         print(f"\nIMO {vessel.imo} ({vessel.label})")
-        teu = specs.resolve_teu(vessel, cfg)
-        print(f"  TEU (inverted from beam {vessel.require_spec('beam_m')} m): "
-              f"{teu:,.0f}  [estimated]")
+        ship_type, size, unit = specs.size_for_table17(vessel, cfg)
+        print(f"  ship type {ship_type}; IMO Table 17 indexed by {unit} = {size:,.0f}"
+              + ("  [estimated -- inverted from beam]" if unit == "TEU" else "  [observed]"))
 
-        print("  Cepowski & Chorab DWT relations vs the observed hull:")
-        for name, r in specs.validate_hull_relations(vessel, cfg.defaults).items():
-            print(f"    {name:8s} predicted {r['predicted']:8.1f}  "
-                  f"observed {r['observed']:8.1f}  error {r['error_pct']:+6.1f}%")
+        # §2.1 and the Cepowski & Chorab hull relations are container-specific.
+        if unit == "TEU":
+            print("  Cepowski & Chorab DWT relations vs the observed hull:")
+            for name, r in specs.validate_hull_relations(vessel, cfg.defaults).items():
+                print(f"    {name:8s} predicted {r['predicted']:8.1f}  "
+                      f"observed {r['observed']:8.1f}  error {r['error_pct']:+6.1f}%")
 
         print("  power/speed estimates (no primary -- the spread is the result):")
         for estimate in specs.build_estimates(vessel, cfg).values():
             print("    " + estimate.describe())
 
+        excluded = sorted(set(cfg.run["power_estimates"])
+                          - set(vessel.resolve_power_estimates(cfg.run["power_estimates"])))
+        if excluded:
+            print(f"  excluded for this hull form: {excluded} "
+                  "(no calibration published -- see config/pilot.yaml)")
         print("  NOTE estimate C (sourced installed power and service speed) is "
-              "OPEN ITEM 4 and absent.")
+              "OPEN ITEM 4 and absent for both hulls.")
 
 
 def stage_fuel(cfg, args) -> None:
@@ -352,6 +359,25 @@ def stage_allocation(cfg, args) -> None:
 
     emissions = _load_emissions_year(cfg)
     with Database() as db:
+        # §5.4 -- the international/domestic test. Trivially satisfied by both
+        # pilot hulls, but the fleet-scale version needs it and a template that
+        # omits the filter would quietly include domestic craft when scaled.
+        import pandas as pd
+
+        alloc.register_eez(db, cfg)
+        spines = [pd.read_parquet(cfg.path("interim") / f"vessel_hour_{v.imo}.parquet")
+                  for v in cfg]
+        db.register_frame("vessel_hour", pd.concat(spines, ignore_index=True))
+        db.table_from("eez_hour", "20_eez_join")
+        domestic = alloc.domestic_test(db, cfg)
+        print("\n§5.4 international/domestic test:")
+        for row in domestic.itertuples():
+            print(f"  IMO {row.imo}: dominant EEZ {row.dominant_eez_iso3} "
+                  f"{row.dominant_eez_share:.1%} of in-EEZ hours -> "
+                  f"{'DOMESTIC' if row.is_domestic else 'INTERNATIONAL'}"
+                  f"  ({row.hours_disputed:,} h in disputed/joint-regime waters)")
+        domestic.to_csv(cfg.path("out") / "domestic_test.csv", index=False)
+
         result = alloc.allocate(db, cfg, emissions)
     result.to_parquet(cfg.path("interim") / "allocation.parquet", index=False)
     print(f"\n{len(result):,} allocation rows written")

@@ -214,30 +214,39 @@ def check_port_call_agreement(
 
 
 def check_fleet_envelope(estimates: dict[str, PowerEstimate], cfg: Config) -> Check:
-    """Estimated design speed must fall inside the observed fleet range.
+    """Estimated design speed against the observed fleet range for its ship type.
 
-    Estimate A fails at 28.92 kn against a 24.5 kn maximum. **That failure is the
-    expected result**, not a defect -- MEPC.333(76)'s near-linear power exponent
-    breaks at the top of the container range. It is reported as FAIL so it stays
-    visible wherever the number travels.
+    The envelope is hull-form specific -- 6.0-24.5 kn is the CONTAINER fleet's
+    range -- so a type with none published returns ``within_fleet_envelope=None``
+    and is reported as unassessed rather than as a pass.
+
+    Estimate A sits at 25.55 kn for vessel A, just above the 24.5 kn maximum. That
+    is a reference line fitted to a historical fleet applied to a modern
+    slow-steaming hull: a known and bounded bias, reported rather than corrected.
     """
-    envelope = cfg.defaults["container_fleet_speed_envelope"]
     outside = {k: e for k, e in estimates.items() if e.within_fleet_envelope is False}
-    inside = sorted(set(estimates) - set(outside))
+    inside = sorted(k for k, e in estimates.items() if e.within_fleet_envelope is True)
+    unassessed = sorted(k for k, e in estimates.items() if e.within_fleet_envelope is None)
+
+    if not estimates:
+        return Check("Fleet envelope", PENDING, "no power estimates resolved")
 
     if not outside:
+        detail = f"within range: {inside or 'none'}"
+        if unassessed:
+            detail += f"; no published envelope for this ship type: {unassessed}"
         return Check(
-            "Fleet envelope", PASS,
-            f"all estimates within {envelope['min_kn']}-{envelope['max_kn']} kn",
-            basis=envelope["source"],
+            "Fleet envelope", PASS if inside else PENDING, detail,
+            basis="observed service-speed range for the ship type",
         )
+
     names = ", ".join(f"{k} at {e.design_speed_kn:.2f} kn" for k, e in outside.items())
     return Check(
         "Fleet envelope", FAIL,
-        f"{names} outside {envelope['min_kn']}-{envelope['max_kn']} kn "
-        f"(inside: {', '.join(inside) or 'none'}) -- expected for estimate A",
-        basis=envelope["source"],
-        data={"outside": list(outside)},
+        f"{names} outside the published range (inside: {', '.join(inside) or 'none'}"
+        + (f"; unassessed: {', '.join(unassessed)}" if unassessed else "") + ")",
+        basis="observed service-speed range for the ship type",
+        data={"outside": list(outside), "unassessed": unassessed},
     )
 
 
