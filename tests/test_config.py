@@ -179,16 +179,21 @@ def test_missing_parameter_message_refuses_to_default(cfg) -> None:
         cfg.vessel(VESSEL_A).require_spec("power_C_design_speed_kn")
 
 
-def test_coastline_layer_is_unconfigured_and_raises(cfg) -> None:
-    """Open item 3. §4.1 needs distance-to-coast and no layer has been chosen."""
-    with pytest.raises(MissingParameter, match="coastline"):
-        cfg.spatial_layer("coastline")
+def test_coastline_layer_is_configured(cfg) -> None:
+    """Open item 3, resolved. §4.1 needs distance-to-coast per vessel-hour."""
+    assert cfg.spatial_layer("coastline").exists()
+    assert cfg.spatial_inner("coastline").endswith(".shp")
 
 
-def test_coastline_error_names_the_source_studys_own_layer(cfg) -> None:
-    """The IMO study measures coast distance against Natural Earth shapefiles."""
-    with pytest.raises(MissingParameter, match="Natural Earth"):
-        cfg.spatial_layer("coastline")
+def test_unconfigured_spatial_layer_still_raises_with_guidance(cfg) -> None:
+    """The no-default rule holds for any layer that has not been chosen."""
+    with pytest.raises(MissingParameter, match="OPEN ITEM"):
+        cfg.spatial_layer("bathymetry")
+
+
+def test_eez_layer_points_at_polygons_not_boundaries(cfg) -> None:
+    """The archive holds both; the boundaries would silently match nothing."""
+    assert cfg.spatial_inner("eez") == "World_EEZ_v12_20231025_gpkg/eez_v12.gpkg"
 
 
 def test_configured_spatial_layers_exist(cfg) -> None:

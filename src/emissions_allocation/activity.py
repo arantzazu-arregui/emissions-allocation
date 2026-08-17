@@ -350,6 +350,10 @@ def _parse_port_visits(events: Sequence[dict[str, Any]], imo: str) -> pd.DataFra
             "end_port_iso3": end_anchorage.get("flag"),
             "lat": start_anchorage.get("lat"),
             "lon": start_anchorage.get("lon"),
+            # A visit can begin at one anchorage and end at another; both are
+            # places the vessel was, so both feed the §4.1 port-distance point set.
+            "end_lat": end_anchorage.get("lat"),
+            "end_lon": end_anchorage.get("lon"),
             "at_dock": bool(start_anchorage.get("atDock")),
             # Arrives as a string.
             "confidence": str(visit.get("confidence")) if visit.get("confidence") else None,

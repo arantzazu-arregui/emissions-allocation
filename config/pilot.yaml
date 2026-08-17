@@ -131,6 +131,7 @@ spatial:
   layers:
     eez: World_EEZ_v12_20231025_gpkg/eez_v12.gpkg
     eca_sox_pm: eca_reg14_sox_pm/eca_reg14_sox_pm.shp
+    coastline: EEZ_land_union_v4_202410/EEZ_land_union_v4_202410.shp
 
   # OPEN ITEM 3 -- REQUIRED BY §4.1 AND NOT YET PRESENT.
   # The Table 16 operating-mode matrix needs distance-to-coast per vessel-hour.
@@ -138,11 +139,35 @@ spatial:
   # what separates Anchored from Slow transit, and their auxiliary loads differ
   # (1,800 vs 2,050 kW).
   #
-  # CHOSEN: Marine Regions "Marine and Land Zones v4" (2024-10-10), from
-  #   https://www.marineregions.org/downloads.php
-  # Download it, drop the zip in data/external/marineregions/, and uncomment:
+  # RESOLVED. Marine Regions "Marine and Land Zones v4" ships as EEZ_land_union --
+  # 328 polygons, each a country's LAND MERGED WITH ITS EEZ. It is not a coastline
+  # layer, so the coastline is derived:
   #
-  # coastline: data/external/marineregions/World_Marine_and_Land_Zones_v4_20241010_gpkg.zip
+  #     land_c   = union_c  MINUS  eez_c        (per country, joined on MRGID_EEZ)
+  #     coast    = the boundary of that land
+  #
+  # 285 of the 328 union polygons pair with an EEZ polygon; 253 yield non-empty
+  # land (the rest are EEZ areas around features with no mapped land). The other
+  # 41 are landlocked countries, which have no EEZ and no coastline.
+  #
+  # CAVEAT, and it is a real one: EEZ v12 is measured from the territorial-sea
+  # BASELINE, so internal waters -- harbours, bays landward of the baseline -- fall
+  # into the difference and read as "land". Distance-to-coast is therefore measured
+  # from the baseline rather than the physical shoreline. For vessel A this affects
+  # 0.2% of distinct positions, all of them in harbours, where the result is
+  # distance 0 and the ship is inside 1 nm of a port anyway -- so the Table 16
+  # column is unchanged. On a deeply indented coast the two would diverge more.
+  #
+  # The IMO Fourth GHG Study measures these distances against Natural Earth
+  # coastline shapefiles (stated on the Table 16 page, printed p.66), which are
+  # physical shorelines and would not have this caveat. Marine and Land Zones was
+  # chosen instead because it shares a publisher, CRS and coding scheme with
+  # EEZ v12 and High Seas v2, keeping every layer joinable without a second
+  # convention -- and because deriving land from it reuses the EEZ layer already
+  # loaded for §5.4. Swapping to Natural Earth is a change to this key plus
+  # 23_distance_to_coast.sql, and is worth testing if the berth/anchored split
+  # turns out to drive the result.
+  coastline: data/external/marineregions/EEZ_land_union_v4_202410.zip
   #
   # ALTERNATIVE, and arguably the more faithful one: the IMO Fourth GHG Study
   # measures these distances against "the world's coastal lines, freely available

@@ -380,6 +380,79 @@ def stage_impacts(cfg, args) -> None:
     print(f"\n  scenario spread written ({len(spread):,} rows)")
 
 
+def stage_emissions(cfg, args) -> None:
+    """§4 -- operating mode, power demand, SFC correction and CO2."""
+    import pandas as pd
+
+    from emissions_allocation import activity, emissions, fuel, specs
+    from emissions_allocation.allocation import register_eez
+
+    interim = cfg.path("interim")
+    with Database() as db:
+        db.register_config_tables(cfg.factors)
+        register_eez(db, cfg)
+
+        for vessel in cfg:
+            print(f"\nIMO {vessel.imo} ({vessel.label})")
+            spine = pd.read_parquet(interim / f"vessel_hour_{vessel.imo}.parquet")
+            port_calls = pd.read_parquet(interim / f"port_call_{vessel.imo}.parquet")
+            fuel_assignment = pd.read_parquet(
+                interim / f"fuel_assignment_{vessel.imo}.parquet"
+            )
+            coverage = activity.coverage_by_year(spine)
+
+            db.register_frame("vessel_hour", spine)
+            db.register_frame("port_call", port_calls)
+
+            print("  distances to port and coast (the slow step) ...", flush=True)
+            distances = emissions.register_distance_layers(db, cfg, spine)
+            near_coast = distances["coast_nm"].notna().sum()
+            near_port = distances["port_nm"].notna().sum()
+            print(f"    {len(distances):,} distinct positions; "
+                  f"{near_coast:,} within ~7 nm of coast, {near_port:,} of a port")
+
+            estimates = specs.build_estimates(vessel, cfg)
+            print(f"  running {len(estimates) * len(cfg.run['smoothing_windows'])} "
+                  f"scenarios ...", flush=True)
+            hourly, yearly = emissions.annual_emissions(
+                db, cfg, vessel, spine, fuel_assignment, coverage, estimates
+            )
+
+            print("\n  operating-mode split (scenario A, w=3):")
+            sample = hourly[hourly["scenario_id"] == f"A_w3"]
+            if not sample.empty:
+                for mode, n in sample["operating_mode"].value_counts().items():
+                    print(f"    {mode:16s} {n:>7,} h ({n / len(sample):5.1%})")
+
+            print("\n  annual CO2 (t), coverage-corrected, by power estimate:")
+            pivot = yearly[yearly["smoothing_window"] == 3].pivot_table(
+                index="year", columns="power_estimate", values="co2_tonnes"
+            )
+            for year, row in pivot.iterrows():
+                cells = "  ".join(f"{k}={v:>10,.0f}" for k, v in row.items())
+                low = yearly[(yearly["year"] == year)]["is_low_confidence"].any()
+                print(f"    {year}  {cells}{'   <- low confidence' if low else ''}")
+
+            total = yearly[yearly["smoothing_window"] == 3].groupby(
+                "power_estimate")["co2_tonnes"].sum()
+            print("\n  8-year total CO2 (t), w=3:")
+            for k, v in total.items():
+                print(f"    estimate {k}: {v:>12,.0f}")
+            if len(total) > 1:
+                print(f"    spread: {total.max() / total.min():.2f}x")
+
+            hourly.to_parquet(interim / f"emissions_hour_{vessel.imo}.parquet", index=False)
+            yearly.to_parquet(interim / f"emissions_year_{vessel.imo}.parquet", index=False)
+
+    frames = [
+        pd.read_parquet(interim / f"emissions_year_{v.imo}.parquet") for v in cfg
+    ]
+    pd.concat(frames, ignore_index=True).to_parquet(
+        interim / "emissions_year.parquet", index=False
+    )
+    print(f"\nwrote emissions_year.parquet ({sum(len(f) for f in frames):,} rows)")
+
+
 def _not_yet(name: str):
     def run(cfg, args) -> None:
         raise SystemExit(
@@ -395,11 +468,13 @@ HANDLERS = {
     "activity": stage_activity,
     "specs": stage_specs,
     "fuel": stage_fuel,
+    "emissions": stage_emissions,
     "baselines": stage_baselines,
     "allocation": stage_allocation,
     "impacts": stage_impacts,
     **{s: _not_yet(s) for s in STAGES if s not in (
-        "check", "activity", "specs", "fuel", "baselines", "allocation", "impacts")},
+        "check", "activity", "specs", "fuel", "emissions",
+        "baselines", "allocation", "impacts")},
 }
 
 
