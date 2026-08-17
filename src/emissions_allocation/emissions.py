@@ -175,6 +175,10 @@ def register_distance_layers(db: Database, cfg: Config, spine: pd.DataFrame) -> 
         inner=cfg.spatial_inner("coastline"),
     )
 
+    # §4.1 At berth / Anchored: a port-visit interval is a stronger signal than
+    # distance to an anchorage point. Built once, reused by every scenario.
+    db.table_from("port_visit_hour", "24_port_visit_hour")
+
     db.table_from("port_distance", "22_distance_to_port", prefilter_degrees=PREFILTER_DEGREES)
     db.table_from("coast_distance", "23_distance_to_coast", prefilter_degrees=PREFILTER_DEGREES)
 
@@ -204,7 +208,11 @@ def assign_modes(
     db.register_frame("hour_load", hour_load)
 
     is_liquid_tanker = vessel.require_spec("ship_type") in LIQUID_TANKER_TYPES
-    modes = db.sql("40_operating_mode", is_liquid_tanker=is_liquid_tanker).df()
+    modes = db.sql(
+        "40_operating_mode",
+        is_liquid_tanker=is_liquid_tanker,
+        use_port_visit_intervals=bool(cfg.run.get("use_port_visit_intervals", True)),
+    ).df()
     return modes.set_index(["imo", "ts"])["operating_mode"]
 
 

@@ -29,6 +29,21 @@
 -- NULL distances mean "further than the prefilter searched", i.e. beyond 5 nm --
 -- see 22_distance_to_port.sql and 23_distance_to_coast.sql.
 
+-- ONE DOCUMENTED DEPARTURE FROM TABLE 16, at the At berth / Anchored split.
+--
+-- The source separates the two by distance to port because it had no better
+-- signal, and METHODOLOGY §4.1 flags that exposure explicitly. We do have a better
+-- signal: a GFW port-visit event asserts, from a different endpoint and with a
+-- confidence score, that the vessel was in port between two timestamps.
+--
+-- Measured effect on vessel A: the distance test put 1,143 h at berth against
+-- 17,427 h actually inside port visits, pushing ~16,000 h onto the Anchored
+-- auxiliary load (1,800 kW) instead of At berth (1,300 kW). The cause is that GFW
+-- anchorage coordinates sit some way off the berth, so a berthed ship reads as
+-- more than 1 nm from "port".
+--
+-- $use_port_visit_intervals restores the strict distance rule when false, so the
+-- two can be compared rather than one being assumed.
 SELECT
     h.imo,
     h.ts,
@@ -36,10 +51,13 @@ SELECT
     h.me_load,
     d.port_nm,
     d.coast_nm,
+    v.in_port_visit,
+    v.visit_at_dock,
     CASE
         -- SOG <= 1 kn
         WHEN h.sog <= 1 THEN
             CASE
+                WHEN $use_port_visit_intervals AND v.in_port_visit THEN 'at_berth'
                 WHEN d.port_nm <= 1                        THEN 'at_berth'
                 WHEN $is_liquid_tanker AND d.port_nm <= 5  THEN 'at_berth'
                 ELSE 'anchored'
@@ -70,4 +88,6 @@ SELECT
     END AS operating_mode
 FROM hour_load AS h
 LEFT JOIN position_distance AS d
-       ON d.lat = h.lat AND d.lon = h.lon;
+       ON d.lat = h.lat AND d.lon = h.lon
+LEFT JOIN port_visit_hour AS v
+       ON v.imo = h.imo AND v.ts = h.ts;

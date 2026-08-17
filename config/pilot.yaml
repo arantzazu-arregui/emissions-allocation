@@ -112,6 +112,25 @@ run:
   # correction as uniform and negligible on the strength of 2024 alone.
   coverage_correction: true
 
+  # --- §4.1 At berth vs Anchored --------------------------------------------
+  # Table 16 separates these by distance to port, because the IMO study had no
+  # better signal; METHODOLOGY §4.1 flags the exposure ("GFW does not expose AIS
+  # navigational status, so 'at berth' and 'anchored' are separated by distance
+  # alone").
+  #
+  # We do have a better signal. A GFW port-visit event asserts, from a different
+  # endpoint and with a confidence score, that the vessel was in port between two
+  # timestamps. When true, an hour at <=1 kn inside a port-visit interval is At
+  # berth regardless of its distance to an anchorage point.
+  #
+  # It matters: GFW anchorage coordinates sit some way off the berth, so the
+  # distance test put only 1,143 h at berth against 17,427 h actually inside port
+  # visits -- pushing ~16,000 h onto 1,800 kW auxiliary instead of 1,300 kW on a
+  # hull that spends a quarter of the period in port.
+  #
+  # Set false to restore strict Table 16 behaviour and compare.
+  use_port_visit_intervals: true
+
 paths:
   raw: data/raw
   interim: data/interim

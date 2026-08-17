@@ -251,3 +251,77 @@ def test_fuel_assignment_rule_has_three_conditions(cfg) -> None:
     assert set(conditions) == {
         "main_engine_is_high_speed", "inside_eca", "voyage_leg_is_eu_to_eu"
     }
+
+
+# ---------------------------------------------------------------------------
+# §4.1 -- At berth vs Anchored, via port-visit intervals
+# ---------------------------------------------------------------------------
+
+
+def test_port_visit_interval_rule_is_enabled(cfg) -> None:
+    """Table 16 splits berth from anchor by distance because the IMO study had no
+    better signal. A GFW port-visit event is a better one, from another endpoint."""
+    assert cfg.run["use_port_visit_intervals"] is True
+
+
+def test_at_berth_uses_port_visit_intervals(cfg) -> None:
+    """A stationary hour inside a port visit is At berth however far the nearest
+    anchorage COORDINATE happens to be -- GFW anchorage points sit off the berth."""
+    import pandas as pd
+
+    from emissions_allocation.db import Database
+
+    ts = pd.Timestamp("2024-01-11 06:00")
+    with Database() as db:
+        db.register_frame("hour_load", pd.DataFrame({
+            "imo": ["9516454"], "ts": [ts], "lat": [33.75], "lon": [-118.20],
+            "sog": [0.2], "me_load": [0.0],
+        }))
+        # Far from any anchorage point, but inside a port-visit interval.
+        db.register_frame("position_distance", pd.DataFrame({
+            "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+        }))
+        db.register_frame("port_visit_hour", pd.DataFrame({
+            "imo": ["9516454"], "ts": [ts],
+            "in_port_visit": [True], "visit_at_dock": [True],
+        }))
+        mode = db.sql(
+            "40_operating_mode", is_liquid_tanker=False, use_port_visit_intervals=True
+        ).df()["operating_mode"].iloc[0]
+    assert mode == "at_berth"
+
+
+def test_strict_table_16_still_reads_anchored(cfg) -> None:
+    """The flag genuinely switches behaviour, so the two can be compared."""
+    import pandas as pd
+
+    from emissions_allocation.db import Database
+
+    ts = pd.Timestamp("2024-01-11 06:00")
+    with Database() as db:
+        db.register_frame("hour_load", pd.DataFrame({
+            "imo": ["9516454"], "ts": [ts], "lat": [33.75], "lon": [-118.20],
+            "sog": [0.2], "me_load": [0.0],
+        }))
+        db.register_frame("position_distance", pd.DataFrame({
+            "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+        }))
+        db.register_frame("port_visit_hour", pd.DataFrame({
+            "imo": ["9516454"], "ts": [ts],
+            "in_port_visit": [True], "visit_at_dock": [True],
+        }))
+        mode = db.sql(
+            "40_operating_mode", is_liquid_tanker=False, use_port_visit_intervals=False
+        ).df()["operating_mode"].iloc[0]
+    assert mode == "anchored"
+
+
+def test_at_berth_draws_less_auxiliary_than_anchored(cfg) -> None:
+    """Why the classification matters: 1,300 kW against 1,800 kW."""
+    modes = cfg.factors["auxiliary_boiler_power"]["modes"]
+    band = next(
+        b for b in cfg.factors["auxiliary_boiler_power"]["ship_types"]["container"]["bands"]
+        if b["min"] == 12000
+    )
+    assert band["auxiliary"][modes.index("at_berth")] == 1300
+    assert band["auxiliary"][modes.index("anchored")] == 1800
