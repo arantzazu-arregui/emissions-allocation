@@ -103,51 +103,88 @@ defaults:
   # --- §2.2 estimate B -- Admiralty coefficient, calibrated ------------------
   # V   = Fn * sqrt(g * L_BP) / 0.5144        [knots]
   # MCR = displacement^(2/3) * V^3 / C_adm
+  #
+  # EVERY PARAMETER HERE IS HULL-FORM SPECIFIC, so they are keyed by ship type and
+  # a type with no calibration RAISES rather than borrowing another's. Charchalis
+  # published 17 container ships; there is no equivalent table for car carriers,
+  # ro-ros or tankers, and C_adm, the block coefficient and the Froude range all
+  # differ materially between hull forms.
+  #
+  # Silently reusing the container numbers for a vehicle carrier would return a
+  # confident, wrong figure -- which is exactly the failure mode the three-estimate
+  # design exists to expose, not to commit.
   admiralty:
-    c_adm:
-      median: 482
-      mean: 478
-      sd: 57
-      min: 352
-      max: 593
-      source: "Charchalis (2014), Journal of KONES 21(2), 39-44 -- Table 1, 17 container ships with matched speed, power and displacement"
-      method: "calibrated; consistent with the textbook 400-600 band"
-      estimated: true
-      # WEAKEST JOINT IN THE ESTIMATE: calibrated on 1,200-1,400 TEU feeders and
-      # extrapolated across a tenfold size jump.
-    froude_number:
-      min: 0.19
-      max: 0.21
-      source: "Cepowski & Chorab (2021) -- modern container fleet mean is 0.21"
-      method: "range; larger recent ships trend lower"
-      estimated: true
-    block_coefficient:
-      value: 0.61
-      source: "docs/METHODOLOGY.md §2.2"
-      method: assigned
-      estimated: true
     seawater_density:
       value: 1.025
       unit: t/m3
       source: standard
       method: constant
       estimated: false
-    dwt_to_displacement_ratio:
-      value: 0.80
-      source: "Charchalis (2014)"
-      method: "displacement = DWT / 0.80"
-      estimated: true
-      # The two displacement routes (C_B*L*B*T*rho vs DWT/0.80) differ by ~18% on
-      # Charchalis's own worked example. They bracket a real convention
-      # difference, not a rounding error, so BOTH are carried.
+
+    by_ship_type:
+      container:
+        c_adm:
+          median: 482
+          mean: 478
+          sd: 57
+          min: 352
+          max: 593
+          source: "Charchalis (2014), Journal of KONES 21(2), 39-44 -- Table 1, 17 container ships with matched speed, power and displacement"
+          method: "calibrated; consistent with the textbook 400-600 band"
+          estimated: true
+          # WEAKEST JOINT: calibrated on 1,200-1,400 TEU feeders and extrapolated
+          # across a tenfold size jump to vessel A.
+        froude_number:
+          min: 0.19
+          max: 0.21
+          source: "Cepowski & Chorab (2021) -- modern container fleet mean is 0.21"
+          method: "range; larger recent ships trend lower"
+          estimated: true
+        block_coefficient:
+          value: 0.61
+          source: "docs/METHODOLOGY.md §2.2"
+          method: assigned
+          estimated: true
+        dwt_to_displacement_ratio:
+          value: 0.80
+          source: "Charchalis (2014)"
+          method: "displacement = DWT / 0.80"
+          estimated: true
+          # The two displacement routes differ by ~18% on Charchalis's own worked
+          # example -- a real convention difference, so both are carried.
+
+      # NOT CALIBRATED. No published Admiralty coefficient, block coefficient or
+      # Froude range is held for these hull forms. specs.estimate_b_admiralty
+      # raises for any of them; drop 'B' from run.power_estimates, or supply a
+      # sourced calibration here, before modelling such a hull.
+      #
+      # A car carrier is the clearest case: its block coefficient and displacement
+      # ratio are nothing like a container ship's, and its DWT/GT of 0.367 against
+      # a boxship's 1.013 shows why.
+      vehicle: null
+      ro_ro: null
+      bulk_carrier: null
+      oil_tanker: null
+      chemical_tanker: null
+      general_cargo: null
+      liquefied_gas_tanker: null
+      refrigerated_bulk: null
+      ferry_ropax: null
+      ferry_pax_only: null
+      cruise: null
+      other_liquids_tanker: null
 
   # --- §8.2 fleet-envelope validation check ----------------------------------
-  container_fleet_speed_envelope:
-    min_kn: 6.0
-    max_kn: 24.5
-    source: "Cepowski & Chorab (2021), Table 1 -- 215 distinct container designs built since 2015"
-    method: "observed range of service speeds"
-    estimated: false
+  # Also hull-form specific: 6.0-24.5 kn is the CONTAINER fleet's range and says
+  # nothing about a car carrier. A type with no published envelope returns None
+  # (unknown) rather than a spurious pass or fail.
+  fleet_speed_envelope:
+    container:
+      min_kn: 6.0
+      max_kn: 24.5
+      source: "Cepowski & Chorab (2021), Table 1 -- 215 distinct container designs built since 2015"
+      method: "observed range of service speeds"
+      estimated: false
 
   # --- §2.3 engine type ------------------------------------------------------
   default_engine_type:

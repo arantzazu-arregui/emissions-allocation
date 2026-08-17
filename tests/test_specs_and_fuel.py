@@ -213,7 +213,7 @@ def test_froude_speed_matches_a_hand_calculation() -> None:
 
 
 def test_c_adm_calibration_sits_in_the_textbook_band(cfg) -> None:
-    c_adm = cfg.defaults["admiralty"]["c_adm"]
+    c_adm = cfg.defaults["admiralty"]["by_ship_type"]["container"]["c_adm"]
     assert 400 <= c_adm["median"] <= 600
     assert c_adm["min"] < c_adm["median"] < c_adm["max"]
 
@@ -383,3 +383,75 @@ def test_at_berth_draws_less_auxiliary_than_anchored(cfg) -> None:
     )
     assert band["auxiliary"][modes.index("at_berth")] == 1300
     assert band["auxiliary"][modes.index("anchored")] == 1800
+
+
+
+# ---------------------------------------------------------------------------
+# Multi-type support -- the pipeline must price ANY hull, or say why not
+# ---------------------------------------------------------------------------
+
+
+def _hull(base, ship_type, dwt, gt):
+    import dataclasses
+
+    from emissions_allocation.config import Parameter
+
+    return dataclasses.replace(base, specs={
+        **base.specs,
+        "ship_type": Parameter("ship_type", ship_type),
+        "dwt": Parameter("dwt", dwt),
+        "gt": Parameter("gt", gt),
+    })
+
+
+@pytest.mark.parametrize("ship_type,dwt,gt", [
+    ("container", 156610, 154592), ("vehicle", 21182, 57718),
+    ("bulk_carrier", 80000, 45000), ("oil_tanker", 300000, 160000),
+    ("cruise", 12000, 120000), ("ferry_ropax", 9000, 25000),
+    ("general_cargo", 12000, 9000), ("ro_ro", 15000, 25000),
+])
+def test_estimate_a_resolves_for_every_ship_type(vessel, cfg, ship_type, dwt, gt) -> None:
+    """All twelve MEPC.333(76) categories, so a hull is a config lookup."""
+    estimate = specs.estimate_a_eexi(_hull(vessel, ship_type, dwt, gt), cfg.defaults, cfg)
+    assert 5 < estimate.design_speed_kn < 40
+    assert estimate.mcr_kw > 0
+
+
+def test_table17_size_basis_follows_the_table_not_an_assumption(vessel, cfg) -> None:
+    """Container ships are indexed by TEU, most types by DWT, and ferries, cruise
+    ships and yachts by GT. Passing deadweight to a GT-indexed row lands in the
+    wrong band and returns a plausible wrong number."""
+    assert specs.size_for_table17(_hull(vessel, "container", 156610, 154592), cfg)[2] == "TEU"
+    assert specs.size_for_table17(_hull(vessel, "vehicle", 21182, 57718), cfg)[1] == 21182
+    ship_type, size, unit = specs.size_for_table17(_hull(vessel, "cruise", 12000, 120000), cfg)
+    assert (unit, size) == ("gt", 120000)
+
+
+def test_estimate_b_raises_for_uncalibrated_hull_forms(vessel, cfg) -> None:
+    """C_adm, the block coefficient and the Froude range are hull-form specific.
+
+    Charchalis published container ships only. Borrowing those numbers for a car
+    carrier would return a confident wrong figure -- the failure the three-estimate
+    design exists to expose, not to commit.
+    """
+    for ship_type in ("vehicle", "bulk_carrier", "oil_tanker", "cruise"):
+        with pytest.raises(MissingParameter, match="no Admiralty calibration"):
+            specs.estimate_b_admiralty(_hull(vessel, ship_type, 20000, 50000), cfg.defaults)
+
+
+def test_fleet_envelope_is_unknown_rather_than_false_off_type(vessel, cfg) -> None:
+    """6.0-24.5 kn is the CONTAINER fleet's range and says nothing about a ro-ro."""
+    assert specs.check_fleet_envelope(20.0, cfg.defaults, "container") is True
+    assert specs.check_fleet_envelope(30.0, cfg.defaults, "container") is False
+    assert specs.check_fleet_envelope(20.0, cfg.defaults, "vehicle") is None
+
+
+def test_unknown_ship_type_raises_at_table_17(vessel, cfg) -> None:
+    with pytest.raises(MissingParameter, match="Table 17 has no rows"):
+        specs.size_for_table17(_hull(vessel, "submarine", 5000, 5000), cfg)
+
+
+def test_liquid_tanker_list_comes_from_config(cfg) -> None:
+    """Table 16's tanker-only column, as data rather than a hardcoded tuple."""
+    types = cfg.factors["operating_mode_matrix"]["liquid_tanker_types"]
+    assert "oil_tanker" in types and "container" not in types

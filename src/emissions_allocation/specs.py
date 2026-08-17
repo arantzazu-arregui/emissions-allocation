@@ -29,6 +29,8 @@ from typing import Any
 
 from emissions_allocation.config import Config, MissingParameter, Vessel
 
+NL = chr(10)
+
 log = logging.getLogger(__name__)
 
 GRAVITY = 9.80665           # m/s^2
@@ -165,7 +167,9 @@ def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any], cfg: Config | None
             f"{f'(cap {power_row["capacity_cap"]:,})' if power_row.get('capacity_cap') else ''}"
             f"^{power_row['F']}"
         ),
-        within_fleet_envelope=check_fleet_envelope(speed, defaults),
+        within_fleet_envelope=check_fleet_envelope(
+            speed, defaults, vessel.require_spec("ship_type")
+        ),
         variants={
             "eexi_type": key,
             "capacity_speed": _capacity(vessel, speed_row),
@@ -196,25 +200,38 @@ def admiralty_power_kw(displacement_t: float, speed_kn: float, c_adm: float) -> 
     return displacement_t ** (2 / 3) * speed_kn**3 / c_adm
 
 
-def estimate_b_admiralty(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimate:
+def estimate_b_admiralty(vessel, defaults):
     """Froude-number speed with the Admiralty power relation.
 
-    Both displacement conventions are computed and carried:
+    **Every parameter here is hull-form specific**, so they are keyed by ship type.
+    Charchalis published 17 container ships; there is no equivalent for car
+    carriers, ro-ros or tankers, and C_adm, the block coefficient and the Froude
+    range all differ materially between hull forms.
 
-    * ``C_B * L_BP * B * T * rho`` gives 176,807 t for vessel A
-    * ``DWT / 0.80`` (Charchalis's ratio) gives 195,762 t
-
-    These differ by ~18% on Charchalis's own worked example, so they bracket a real
-    convention difference rather than a rounding error. The headline value uses the
-    midpoint of the Froude range and the median calibrated ``C_adm``; the full
-    bracket travels in ``variants`` for the notebook to show.
-
-    ``C_adm`` is the weakest joint in this estimate -- calibrated on 1,200-1,400 TEU
-    feeders and extrapolated across a tenfold size jump.
+    Raises:
+        MissingParameter: For any ship type without a published calibration.
+            Borrowing the container numbers would return a confident wrong figure --
+            the failure the three-estimate design exists to expose, not commit.
     """
+    ship_type = vessel.require_spec("ship_type")
     block = defaults["admiralty"]
-    c_adm = block["c_adm"]["median"]
-    fn_min, fn_max = block["froude_number"]["min"], block["froude_number"]["max"]
+    calibration = (block.get("by_ship_type") or {}).get(ship_type)
+
+    if not calibration:
+        available = sorted(k for k, v in (block.get("by_ship_type") or {}).items() if v)
+        raise MissingParameter(
+            "no Admiralty calibration for ship type " + repr(ship_type) + "." + NL
+            + "  C_adm, the block coefficient and the Froude range are all hull-form"
+            + " specific, and only " + str(available) + " are calibrated"
+            + " (Charchalis 2014 published container ships only)." + NL
+            + "  Supply a sourced calibration under defaults.admiralty.by_ship_type."
+            + ship_type + ", or drop 'B' from run.power_estimates for this hull." + NL
+            + "  No default is substituted."
+        )
+
+    c_adm = calibration["c_adm"]["median"]
+    fn_min = calibration["froude_number"]["min"]
+    fn_max = calibration["froude_number"]["max"]
 
     lbp = vessel.require_spec("lbp_m")
     speed_min = froude_speed_kn(fn_min, lbp)
@@ -222,32 +239,26 @@ def estimate_b_admiralty(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstim
     speed = (speed_min + speed_max) / 2
 
     displacement_geometric = displacement_from_dimensions(
-        block["block_coefficient"]["value"],
-        lbp,
-        vessel.require_spec("beam_m"),
-        vessel.require_spec("draught_m"),
+        calibration["block_coefficient"]["value"], lbp,
+        vessel.require_spec("beam_m"), vessel.require_spec("draught_m"),
         block["seawater_density"]["value"],
     )
     displacement_ratio = (
-        vessel.require_spec("dwt") / block["dwt_to_displacement_ratio"]["value"]
+        vessel.require_spec("dwt") / calibration["dwt_to_displacement_ratio"]["value"]
     )
     displacement = (displacement_geometric + displacement_ratio) / 2
-
     mcr = admiralty_power_kw(displacement, speed, c_adm)
 
     return PowerEstimate(
         label="B (Admiralty, calibrated)",
         design_speed_kn=speed,
         mcr_kw=mcr,
-        source=(
-            f"{block['c_adm']['source']}; Froude range from "
-            f"{block['froude_number']['source']}"
-        ),
-        method=(
-            f"V = Fn*sqrt(g*L_BP)/0.5144 over Fn {fn_min}-{fn_max}; "
-            f"MCR = displacement^(2/3)*V^3/C_adm with C_adm={c_adm}"
-        ),
-        within_fleet_envelope=check_fleet_envelope(speed, defaults),
+        source=(calibration["c_adm"]["source"] + "; Froude range from "
+                + calibration["froude_number"]["source"]),
+        method=("V = Fn*sqrt(g*L_BP)/0.5144 over Fn " + str(fn_min) + "-" + str(fn_max)
+                + "; MCR = displacement^(2/3)*V^3/C_adm with C_adm=" + str(c_adm)
+                + " (calibrated on " + ship_type + " hulls)"),
+        within_fleet_envelope=check_fleet_envelope(speed, defaults, ship_type),
         variants={
             "speed_kn_range": (speed_min, speed_max),
             "displacement_geometric_t": displacement_geometric,
@@ -257,7 +268,8 @@ def estimate_b_admiralty(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstim
                 admiralty_power_kw(displacement_ratio, speed_max, c_adm),
             ),
             "c_adm": c_adm,
-            "c_adm_range": (block["c_adm"]["min"], block["c_adm"]["max"]),
+            "c_adm_range": (calibration["c_adm"]["min"], calibration["c_adm"]["max"]),
+            "calibrated_on": ship_type,
         },
     )
 
@@ -295,7 +307,9 @@ def estimate_c_sourced(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimat
         mcr_kw=mcr,
         source=parameter.source or "sourced",
         method=parameter.method or "sourced specification",
-        within_fleet_envelope=check_fleet_envelope(speed, defaults),
+        within_fleet_envelope=check_fleet_envelope(
+            speed, defaults, vessel.require_spec("ship_type")
+        ),
     )
 
 
@@ -304,15 +318,18 @@ def estimate_c_sourced(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimat
 # ---------------------------------------------------------------------------
 
 
-def check_fleet_envelope(speed_kn: float, defaults: dict[str, Any]) -> bool:
-    """Is this design speed inside the observed modern container fleet range?
+def check_fleet_envelope(speed_kn, defaults, ship_type="container"):
+    """Is this design speed inside the observed fleet range for its ship type?
 
-    6.0-24.5 kn across 215 distinct container designs built since 2015. Estimate A
-    returns 28.92 kn for vessel A and fails. That is a reported validation result,
-    not something to correct -- the estimate is carried through to the CO2 figure so
-    the reader can see what an out-of-envelope power assumption does.
+    Hull-form specific: 6.0-24.5 kn is the CONTAINER fleet's range and says nothing
+    about a car carrier or a ro-ro.
+
+    Returns True/False where an envelope is published for the type, and None where
+    none is -- unknown, rather than a spurious pass or fail.
     """
-    envelope = defaults["container_fleet_speed_envelope"]
+    envelope = (defaults.get("fleet_speed_envelope") or {}).get(ship_type)
+    if not envelope:
+        return None
     return bool(envelope["min_kn"] <= speed_kn <= envelope["max_kn"])
 
 
@@ -358,13 +375,28 @@ def resolve_teu(vessel: Vessel, cfg: Config) -> float:
     )
 
 
-def size_for_table17(vessel: Vessel, cfg: Config) -> tuple[str, float, str]:
-    """``(ship_type, size, unit)`` for the IMO Table 17 range join.
+def size_for_table17(vessel, cfg):
+    """(ship_type, size, unit) for the IMO Table 17 range join.
 
-    Container ships are indexed by TEU, everything else by deadweight (or cubic
-    metres for liquefied gas tankers, which neither pilot hull is).
+    The size basis is read from Table 17 itself rather than assumed: container ships
+    are indexed by TEU, most types by deadweight, and ferries, cruise ships, yachts
+    and service craft by gross tonnage. Passing deadweight to a GT-indexed row lands
+    in the wrong band and returns a plausible wrong number.
+
+    TEU is the only basis that must be derived (2.1); the rest are observed.
     """
     ship_type = vessel.require_spec("ship_type")
-    if ship_type == "container":
-        return ship_type, resolve_teu(vessel, cfg), "TEU"
-    return ship_type, vessel.require_spec("dwt"), "dwt"
+    types = cfg.factors["auxiliary_boiler_power"]["ship_types"] or {}
+    table = types.get(ship_type)
+    if not table:
+        raise MissingParameter(
+            "IMO Table 17 has no rows for ship type " + repr(ship_type) + "." + NL
+            + "  Known: " + str(sorted(types)) + NL
+            + "  Auxiliary and boiler demand cannot be priced without them."
+        )
+    unit = table["size_unit"]
+    if unit == "TEU":
+        return ship_type, resolve_teu(vessel, cfg), unit
+    if unit == "gt":
+        return ship_type, vessel.require_spec("gt"), unit
+    return ship_type, vessel.require_spec("dwt"), unit

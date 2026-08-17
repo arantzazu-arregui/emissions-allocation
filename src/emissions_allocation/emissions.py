@@ -43,9 +43,9 @@ MODES_WITHOUT_MAIN_ENGINE = ("at_berth", "anchored")
 # this neighbourhood. ~0.12 degrees is a little over 7 nm of latitude.
 PREFILTER_DEGREES = 0.12
 
-LIQUID_TANKER_TYPES = (
-    "chemical_tanker", "liquefied_gas_tanker", "oil_tanker", "other_liquids_tanker",
-)
+# Table 16's 'Port 1-5 nm' column applies to liquid tankers only. The list is read
+# from config (emission_factors.yaml operating_mode_matrix.liquid_tanker_types)
+# rather than hardcoded, so adding a ship type is a config edit.
 
 
 def main_engine_load(sog_kn: pd.Series, design_speed_kn: float) -> pd.Series:
@@ -207,7 +207,8 @@ def assign_modes(
     hour_load["me_load"] = main_engine_load(hour_load["sog"], estimate.design_speed_kn)
     db.register_frame("hour_load", hour_load)
 
-    is_liquid_tanker = vessel.require_spec("ship_type") in LIQUID_TANKER_TYPES
+    liquid_tankers = cfg.factors["operating_mode_matrix"]["liquid_tanker_types"]
+    is_liquid_tanker = vessel.require_spec("ship_type") in liquid_tankers
     modes = db.sql(
         "40_operating_mode",
         is_liquid_tanker=is_liquid_tanker,
