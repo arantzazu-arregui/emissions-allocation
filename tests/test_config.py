@@ -78,12 +78,38 @@ def test_fleet_iteration_is_the_scaling_path(cfg) -> None:
     assert [v.imo for v in cfg] == [v.imo for v in cfg.vessels]
 
 
-def test_vessel_b_is_absent_and_not_faked(cfg) -> None:
-    """Open item 1. §0.2 has not been run; nothing may stand in for it."""
-    assert len(cfg.vessels) == 1, (
-        "vessel B appears to have been added -- update this test and the notebook's "
-        "allocation comparison, which currently reports the n=1 degenerate case"
-    )
+def test_vessel_b_is_selected(cfg) -> None:
+    """Open item 1, closed. RCC AMERICA, selected by §0.2 and confirmed in Equasis."""
+    vessel = cfg.vessel("9277802")
+    assert vessel.label == "B"
+    assert vessel.require_spec("ship_type") == "vehicle"
+    assert vessel.require_spec("dwt") == 21182
+
+
+def test_vessel_b_narrows_its_power_estimates(cfg) -> None:
+    """No Admiralty calibration exists for a vehicle carrier, so 'B' is excluded in
+    config rather than left to raise mid-run."""
+    assert cfg.vessel("9277802").resolve_power_estimates(cfg.run["power_estimates"]) == ["A"]
+    assert cfg.vessel(VESSEL_A).resolve_power_estimates(cfg.run["power_estimates"]) == ["A", "B"]
+
+
+def test_vessel_b_has_no_invented_hull_dimensions(cfg) -> None:
+    """LOA, beam and draught feed estimate B and the TEU inversion, neither of which
+    applies to this hull. Recording guesses would add risk and nothing else."""
+    vessel = cfg.vessel("9277802")
+    for name in ("loa_m", "beam_m", "draught_m", "lbp_m"):
+        assert name not in vessel.specs
+
+
+def test_vessel_b_gives_the_divergence_vessel_a_cannot(cfg) -> None:
+    """The point of a second hull: flag, owner and manager on three different
+    national budgets, where vessel A's four options collapse onto one."""
+    from emissions_allocation.allocation import summarise_options
+
+    for treatment in cfg.run["hk_treatments"]:
+        row = summarise_options(cfg, treatment).set_index("imo").loc["9277802"]
+        assert row["n_distinct_countries"] == 3
+        assert not row["is_degenerate"]
 
 
 # ---------------------------------------------------------------------------

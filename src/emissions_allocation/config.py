@@ -29,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 
 import yaml
 
@@ -151,6 +151,9 @@ class Vessel:
     allocation_keys: dict[str, dict[str, Any]]
     former_shipnames_outside_period: tuple[str, ...] = ()
     raw_specs: dict[str, Any] = field(default_factory=dict)
+    # Per-vessel override of run.power_estimates. A hull whose type has no
+    # Admiralty calibration excludes 'B' here rather than failing at run time.
+    power_estimates: tuple[str, ...] | None = None
 
     def spec(self, name: str) -> Parameter:
         if name not in self.specs:
@@ -170,6 +173,16 @@ class Vessel:
                 f"Known: {sorted(self.allocation_keys)}"
             )
         return self.allocation_keys[option].get("country")
+
+    def resolve_power_estimates(self, default: Sequence[str]) -> list[str]:
+        """Which power estimates apply to this hull.
+
+        Falls back to the run-wide list. A vessel narrows it when its hull form has
+        no calibration for one of them -- a vehicle carrier has no published
+        Admiralty coefficient, so excluding 'B' in config is more honest than
+        letting specs.estimate_b_admiralty raise mid-run.
+        """
+        return list(self.power_estimates) if self.power_estimates else list(default)
 
     def estimated_specs(self) -> dict[str, Parameter]:
         return {k: v for k, v in self.specs.items() if v.estimated}
@@ -381,6 +394,9 @@ def _build_vessel(entry: dict[str, Any], specs_block: dict[str, Any]) -> Vessel:
         shipnames=tuple(entry.get("shipnames") or ()),
         former_shipnames_outside_period=tuple(
             entry.get("former_shipnames_outside_period") or ()
+        ),
+        power_estimates=(
+            tuple(entry["power_estimates"]) if entry.get("power_estimates") else None
         ),
         specs=specs,
         allocation_keys=keys,

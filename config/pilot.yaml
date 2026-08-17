@@ -27,17 +27,32 @@ vessels:
     former_shipnames_outside_period: ["NE116"]
 
   # --- Vessel B --------------------------------------------------------------
-  # NOT SELECTED. Open item 1. Run docs/METHODOLOGY.md §0.2 via
-  #   python scripts/run_pipeline.py --stage select
-  # which executes steps 1-4 (API-side criteria) and writes a ranked shortlist.
-  # Step 5 (criterion 7: registered-owner country != flag country) requires an
-  # Equasis login and cannot be automated; close it by hand, then add the block
-  # here and the matching entry in vessel_specs.yaml.
+  # RCC AMERICA. Selected by §0.2: discovered from a live world-extent presence
+  # query over six open registries, name confirmed distinct in a 15,417-hull pool,
+  # present in all eight sampled years, 588 port calls across 64 countries with 122
+  # EU calls. Criterion 7 closed by hand in Equasis, which is the step no API can do.
   #
-  # Vessel A alone gives a DEGENERATE allocation -- flag, owner, ISM manager and
-  # commercial manager all resolve to China once Hong Kong folds in -- so the
-  # allocation comparison produces nothing interpretable until B exists.
-  # See docs/METHODOLOGY.md "Scope and honest limits".
+  # This is the open-registry contrast vessel A cannot provide. Its four allocation
+  # keys resolve to THREE distinct national budgets -- Bahamas, United Kingdom and
+  # Greece -- where vessel A's collapse to one.
+  - imo: "9277802"
+    label: B
+    shipnames: ["RCC AMERICA"]
+
+    # ESTIMATE A ONLY. Estimate B's Admiralty coefficient is calibrated on 17
+    # container ships (Charchalis 2014) and there is no published equivalent for a
+    # vehicle carrier -- C_adm, the block coefficient and the Froude range are all
+    # hull-form specific. specs.estimate_b_admiralty raises for this type rather
+    # than borrowing container numbers, so it is excluded here rather than left to
+    # fail at run time.
+    #
+    # Read the resulting figure with the §8.2 caveat in view: against EMSA-verified
+    # emissions, estimate A UNDERSTATES vessel A by 36% (0.64x) while estimate B
+    # matches at 0.98x. Vessel B therefore runs on the estimate we have external
+    # evidence against, with no second estimate to bracket it. Closing that needs
+    # estimate C -- this hull's actual MCR and service speed from class-society
+    # records, which for one named 2003 ship is findable.
+    power_estimates: [A]
 
 run:
   # --- Sensitivity axes (docs/METHODOLOGY.md §8.1) ---------------------------

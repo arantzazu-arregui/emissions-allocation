@@ -319,7 +319,83 @@ vessels:
         # Out of scope BY CONSTRUCTION, not by omission. Four of the paper's five
         # options are reproduced; the fifth is a fleet-scale construct by nature.
 
-  # --- Vessel B ------------------------------------------------------------
+  "9277802":   # RCC AMERICA
+    name: RCC AMERICA
+    mmsi: {value: "311595000", source: Equasis, method: observed, estimated: false}
+    callsign: {value: C6TD4, source: Equasis, method: observed, estimated: false}
+    flag: {value: BHS, source: Equasis, method: observed, estimated: false}
+    ship_type: {value: vehicle, source: "Equasis -- Vehicles Carrier since 01/11/2003", method: observed, estimated: false}
+    year_built: {value: 2003, source: Equasis, method: observed, estimated: false}
+    dwt: {value: 21182, unit: t, source: Equasis, method: observed, estimated: false}
+    gt: {value: 57718, unit: t, source: "Equasis (2003)", method: observed, estimated: false}
+
+    # DWT/GT = 0.367. A container ship sits near 1.0 (vessel A: 1.013), so this hull
+    # carries under a THIRD the deadweight per unit of size -- enclosed volume, not
+    # weight, is what a car carrier is built around. MEPC.333(76) §2.2.7 writes a
+    # cubic capacity correction for exactly this, applying below DWT/GT of 0.35;
+    # this hull sits just above the threshold so it does not trigger.
+    #
+    # LOA, beam, draught and L_BP are NOT recorded. They are inputs to estimate B
+    # and to the §2.1 TEU inversion, neither of which applies to this hull, so
+    # inventing them would add nothing but risk. Add them if estimate B is ever
+    # calibrated for vehicle carriers.
+
+    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default (§2.3)", method: assigned, estimated: true}
+
+    power_estimates:
+      A: derived
+      # B is excluded in pilot.yaml -- no Admiralty calibration exists for this
+      # hull form. See specs.estimate_b_admiralty.
+      C:
+        mcr_kw: {value: null, source: null, method: null, estimated: true}
+        design_speed_kn: {value: null, source: null, method: null, estimated: true}
+
+    # --- §5.1 allocation keys ------------------------------------------------
+    # THREE distinct national budgets, which is the whole point of vessel B.
+    # Equasis, 2026-08-16.
+    allocation_keys:
+      flag:
+        country: BHS
+        gcb_name: Bahamas
+        source: Equasis
+        method: observed
+        estimated: false
+      owner:
+        country: IMN
+        gcb_name: Isle of Man          # -> United Kingdom via territory_alignment
+        company: AMERICA MARITIME LTD
+        company_imo: "5060047"
+        address: "C/O Ray Car Carriers Ltd, 33-37 Athol Street, Douglas, Isle of Man"
+        source: "Equasis registered owner, since 01/11/2003"
+        method: "address-derived"
+        estimated: true
+        # Same §5.2 caveat as vessel A: Equasis gives an ADDRESS, not a country of
+        # incorporation. A single-purpose company c/o its commercial manager.
+      manager:
+        country: GRC
+        gcb_name: Greece
+        company: STAMCO SHIP MANAGEMENT CO LTD
+        company_imo: "1546779"
+        address: "21 Akti Miaouli, 185 35 Piraeus, Greece"
+        source: "Equasis ISM manager, since 05/12/2003"
+        method: "address-derived"
+        estimated: true
+      operator:
+        country: IMN
+        gcb_name: Isle of Man          # -> United Kingdom via territory_alignment
+        company: RAY CAR CARRIERS LTD
+        company_imo: "4064909"
+        address: "33-37 Athol Street, Douglas, Isle of Man"
+        source: "Equasis commercial manager, since 01/01/2003"
+        method: "PROXY -- Equasis has no operator field"
+        estimated: true
+      bunker:
+        country: null
+        source: null
+        method: "not computable at n=2 -- requires national marine-bunker sales statistics"
+        estimated: false
+
+  # --- Further vessels -----------------------------------------------------
   # Add the block here once §0.2 and the Equasis lookup are done. Required
   # fields mirror vessel A: dwt, beam_m, lbp_m, ship_type, engine_type, and the
   # four allocation_keys. If B is a bulk carrier or tanker, defaults.eexi_curve_fit

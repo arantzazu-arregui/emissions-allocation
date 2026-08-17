@@ -351,7 +351,7 @@ def build_estimates(vessel: Vessel, cfg: Config) -> dict[str, PowerEstimate]:
     dropping it -- a scenario space quietly missing an axis is worse than a failure.
     """
     out: dict[str, PowerEstimate] = {}
-    for name in cfg.run["power_estimates"]:
+    for name in vessel.resolve_power_estimates(cfg.run["power_estimates"]):
         builder = _BUILDERS.get(name)
         if builder is None:
             raise MissingParameter(
