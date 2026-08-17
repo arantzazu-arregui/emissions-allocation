@@ -451,6 +451,33 @@ class GFWClient:
         )
         return extract_report_records(body)
 
+    def presence_day(self, condition: str, day: str) -> list[dict[str, Any]]:
+        """One day of hourly presence at world extent under an arbitrary filter.
+
+        Used by §0.2 candidate discovery, which cannot filter on ship name because
+        names are what it is searching for. `condition` is composed by the caller
+        and passed as a single AND-joined string -- a second filters[n] parameter
+        is silently dropped.
+        """
+        from datetime import date, timedelta
+
+        start = date.fromisoformat(day)
+        params = {
+            "spatial-resolution": "HIGH",
+            "temporal-resolution": "HOURLY",
+            "group-by": "VESSEL_ID",
+            "datasets[0]": PRESENCE_DATASET,
+            "date-range": f"{start},{start + timedelta(days=1)}",
+            "format": "JSON",
+            "filters[0]": condition,
+        }
+        body = self._request(
+            "POST", "/4wings/report", params=params,
+            json_body={"geojson": WORLD_POLYGON},
+            cache_key=f"presence_day_{day}_{abs(hash(condition))}",
+        )
+        return extract_report_records(body)
+
     # -- events -------------------------------------------------------------
 
     def port_visits(
