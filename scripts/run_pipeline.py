@@ -401,6 +401,23 @@ def stage_impacts(cfg, args) -> None:
     print("\n  NOTE ranking and concentration shares are structurally meaningless")
     print("  at n=1 -- the code path is exercised, not interpreted.")
 
+    # §6.3 -- the groupings the paper reports.
+    with Database(spatial=False) as db2:
+        regional = impacts.impacts_by_region(db2, cfg, allocation, baseline)
+    regional.to_parquet(interim / "impacts_by_region.parquet", index=False)
+
+    headline = regional[
+        (regional.year == 2024) & (regional.smoothing_window == 3)
+        & (regional.hk_treatment == "folded_into_china")
+        & (regional.region.isin(["OECD", "Non-OECD", "EU27", "KP Annex B", "Non KP Annex B"]))
+    ]
+    if not headline.empty:
+        print("§6.3 by grouping, 2024, w=3, HK folded (Mt CO2):")
+        pivot = headline.pivot_table(index="region", columns="option",
+                                     values="delta_e_mt", aggfunc="sum")
+        print(pivot.to_string(float_format=lambda v: f"{v:.4f}"))
+        print("  (a country belongs to several groups; totals are per group, not additive)")
+
     spread = impacts.scenario_spread(result)
     spread.to_parquet(interim / "scenario_spread.parquet", index=False)
     print(f"\n  scenario spread written ({len(spread):,} rows)")
@@ -514,18 +531,72 @@ def stage_validate(cfg, args) -> None:
                   "estimate A -- see §2.2.")
 
 
+def stage_select(cfg, args) -> None:
+    """§0 -- candidate discovery and criteria filtering.
+
+    Steps 1-4 run here. Step 5 -- criterion 7, registered-owner country != flag
+    country -- needs an Equasis login and cannot be automated, so this produces a
+    ranked shortlist and hands over.
+
+    Skipped by --all once every configured vessel has its specs, because it costs
+    eight world-extent API calls and its output is a hand-off document, not a
+    pipeline input. Force it with --reselect.
+    """
+    from emissions_allocation import selection
+
+    if not args.reselect and all(v.allocation_keys for v in cfg):
+        print(f"every configured vessel already has allocation keys "
+              f"({[v.imo for v in cfg]}); skipping discovery.")
+        print("  run with --reselect to search for more candidates.")
+        return
+
+    client = GFWClient.from_env(cache_dir=cfg.path("raw") / "gfw_cache")
+    print("§0.2 steps 1-3: pooling candidates from world-extent presence ...", flush=True)
+    candidates = selection.discover_candidates(client, cfg)
+    print(f"  pool: {len(candidates):,} distinct IMOs")
+
+    kept = selection.apply_presence_criteria(candidates, len(cfg.years))
+    print(f"  distinct name AND present in all {len(cfg.years)} sampled years: {len(kept):,}")
+
+    print(f"§0.2 step 4: port calls for the top {args.shortlist} ...", flush=True)
+    enriched = selection.enrich_with_port_calls(client, cfg, kept, limit=args.shortlist)
+
+    out = cfg.path("out") / "vessel_candidates.csv"
+    frame = selection.shortlist(enriched, out)
+    if frame.empty:
+        print("  no candidates survived; widen the flags or sample days.")
+        return
+
+    passing = frame[frame.passes_api_criteria]
+    print(f"\n  {len(passing)} of {len(frame)} pass criteria 5 and 6:")
+    for row in passing.head(12).itertuples():
+        print(f"    {row.imo}  {row.shipname[:24]:<24} {row.flag}  "
+              f"{row.port_calls:>4} calls  {row.port_countries:>2} countries  "
+              f"{row.eu_port_calls:>3} EU")
+    print(f"\n  wrote {out}")
+    print("  CRITERION 7 IS NOT CLOSED HERE: registered-owner country must differ")
+    print("  from flag country, which needs an Equasis lookup per candidate.")
+
+
 def _not_yet(name: str):
+    """Placeholder for a stage with no handler.
+
+    The message lists the handler table rather than a hand-written string, so it
+    cannot drift out of date the way the previous one did -- it went on claiming §4
+    was blocked on the coastline layer for eight commits after that stopped being
+    true.
+    """
     def run(cfg, args) -> None:
+        done = sorted(k for k, v in HANDLERS.items() if v.__name__ != "run")
         raise SystemExit(
-            f"stage {name!r} is not yet implemented. "
-            "Implemented so far: check, activity, specs, fuel, baselines, "
-            "allocation, impacts. §4 emissions is blocked on the coastline layer."
+            f"stage {name!r} has no handler. Implemented: {', '.join(done)}."
         )
     return run
 
 
 HANDLERS = {
     "check": stage_check,
+    "select": stage_select,
     "activity": stage_activity,
     "specs": stage_specs,
     "fuel": stage_fuel,
@@ -535,7 +606,7 @@ HANDLERS = {
     "impacts": stage_impacts,
     "validate": stage_validate,
     **{s: _not_yet(s) for s in STAGES if s not in (
-        "check", "activity", "specs", "fuel", "emissions",
+        "check", "select", "activity", "specs", "fuel", "emissions",
         "baselines", "allocation", "impacts", "validate")},
 }
 
@@ -546,6 +617,10 @@ def main() -> None:
     parser.add_argument("--all", action="store_true", help="run every stage in order")
     parser.add_argument("--year", type=int, default=2024,
                         help="year used by --stage check (default: 2024)")
+    parser.add_argument("--reselect", action="store_true",
+                        help="force §0 discovery even when the vessel list is complete")
+    parser.add_argument("--shortlist", type=int, default=18,
+                        help="how many candidates to enrich with port calls (default: 18)")
     parser.add_argument("--offline", action="store_true",
                         help="skip live API calls")
     parser.add_argument("--verbose", "-v", action="store_true")

@@ -1,27 +1,42 @@
 -- §1.7 -- observed coverage, per vessel per year.
 --
---   coverage = observed hours / elapsed hours in period
+-- Two coverage figures, and they mean different things:
 --
--- Measured 8,782 / 8,784 = 99.98% for vessel A in 2024. Selin et al. interpolated
--- 32% of their hours from 2015 AIS; for a large container ship on major trade lanes
--- in the GFW era, gap-filling is close to unnecessary.
+--   coverage_raw     observed / elapsed.  Transparency only.
+--   coverage_active  observed / (elapsed - inactive).  THIS is the §4.5 divisor.
 --
--- Computed here rather than taken from the GFW Insights endpoint, which cannot
--- reach before 2020-01-01 and counts "blocks" rather than hours. Where the two
--- overlap they agreed to within 0.08%.
+-- Hours where the hull was out of service are removed from the denominator rather
+-- than scaled up, so a lay-up cannot fabricate voyages. For vessel A's 2019 the two
+-- differ sharply -- 36.1% raw against 82.0% active -- the latter matching 2017's
+-- reception quality once the 282-day absence is set aside. Dividing emissions by the
+-- raw figure would multiply that year by 2.77x for a ship that was not sailing.
 --
--- `interpolated_hours` is reported alongside so a reader can see how much of the
--- series is filled rather than observed. §4.5 divides annual CO2 by `coverage`
--- when the correction is enabled.
+-- `is_inactive` is set by activity.classify_gaps, which distinguishes a contiguous
+-- absence (no presence AND no port calls, from two independent endpoints) from
+-- scattered reception gaps.
+--
+-- Computed here rather than taken from the GFW Insights endpoint, which cannot reach
+-- before 2020-01-01 and counts "blocks" rather than hours. Where the two overlap they
+-- agreed to within 0.08%.
 
 SELECT
-    imo,
-    year(ts)                                      AS year,
-    count(*) FILTER (WHERE NOT is_interpolated)   AS observed_hours,
-    count(*) FILTER (WHERE is_interpolated)       AS interpolated_hours,
-    count(*)                                      AS elapsed_hours,
+    any_value(imo)                                          AS imo,
+    year(ts)                                                AS year,
+    count(*)                                                AS elapsed_hours,
+    count(*) FILTER (WHERE is_inactive)                     AS inactive_hours,
+    count(*) - count(*) FILTER (WHERE is_inactive)          AS active_hours,
+    count(*) FILTER (WHERE NOT is_interpolated)             AS observed_hours,
+    (count(*) - count(*) FILTER (WHERE is_inactive))
+        - count(*) FILTER (WHERE NOT is_interpolated)       AS interpolated_hours,
+
     count(*) FILTER (WHERE NOT is_interpolated)
-        / CAST(count(*) AS DOUBLE)                AS coverage
+        / CAST(count(*) AS DOUBLE)                          AS coverage_raw,
+
+    count(*) FILTER (WHERE NOT is_interpolated)
+        / nullif(
+            CAST(count(*) - count(*) FILTER (WHERE is_inactive) AS DOUBLE), 0
+          )                                                 AS coverage_active
+
 FROM vessel_hour
-GROUP BY imo, year(ts)
-ORDER BY imo, year;
+GROUP BY year(ts)
+ORDER BY year;

@@ -488,49 +488,40 @@ def assert_gaps_have_no_port_calls(
         )
 
 
-def coverage_by_year(frame: pd.DataFrame) -> pd.DataFrame:
+def coverage_by_year(frame: pd.DataFrame, db=None) -> pd.DataFrame:
     """Coverage per calendar year, separating inactivity from missed reception.
 
-    Computed here rather than taken from the Insights endpoint, which only reaches
-    back to 2020 and counts a different unit. The two agreed to within 0.08% for
-    2024 (99.98% here against 99.897% there).
+    The aggregation itself is SQL (``13_coverage.sql``) -- grouped counts are what
+    the architecture split assigns to DuckDB. A connection is opened for the caller
+    when none is supplied, so this stays a one-line call.
 
-    Two coverage figures are reported per year, and they mean different things:
+    Two coverage figures are returned and they mean different things:
 
     ``coverage_raw``
         observed / elapsed. Transparency only.
     ``coverage_active``
-        observed / (elapsed - inactive). **This is the §4.5 divisor.** Hours where
-        the hull was out of service are removed from the denominator rather than
-        scaled up, so a lay-up cannot fabricate voyages.
+        observed / (elapsed - inactive). **This is the §4.5 divisor.** Out-of-service
+        hours leave the denominator rather than being scaled up, so a lay-up cannot
+        fabricate voyages.
 
-    For vessel A's 2019 the two differ sharply: 36.1% raw against 82.0% active,
-    the latter matching 2017's reception quality once the 282-day absence is set
-    aside.
+    For vessel A's 2019 the two differ sharply: 36.1% raw against 82.0% active, the
+    latter matching 2017's reception quality once the 282-day absence is set aside.
     """
+    from emissions_allocation.db import Database
+
     work = frame.copy()
-    work["year"] = work["ts"].dt.year
     if "is_inactive" not in work.columns:
         work["is_inactive"] = False
 
-    by_year = work.groupby("year", as_index=False).agg(
-        elapsed_hours=("ts", "count"),
-        observed_hours=("is_interpolated", lambda s: int((~s).sum())),
-        inactive_hours=("is_inactive", "sum"),
-    )
-    by_year["active_hours"] = by_year["elapsed_hours"] - by_year["inactive_hours"]
-    by_year["interpolated_hours"] = (
-        by_year["active_hours"] - by_year["observed_hours"]
-    )
-    by_year["coverage_raw"] = by_year["observed_hours"] / by_year["elapsed_hours"]
-    by_year["coverage_active"] = (
-        by_year["observed_hours"] / by_year["active_hours"].replace(0, pd.NA)
-    ).astype(float)
-    by_year["imo"] = work["imo"].iloc[0] if len(work) else None
-    return by_year[[
-        "imo", "year", "elapsed_hours", "inactive_hours", "active_hours",
-        "observed_hours", "interpolated_hours", "coverage_raw", "coverage_active",
-    ]]
+    owned = db is None
+    database = Database(spatial=False) if owned else db
+    try:
+        database.register_frame("vessel_hour", work)
+        out = database.sql("13_coverage").df()
+    finally:
+        if owned:
+            database.close()
+    return out
 
 
 def build_voyage_legs(*args, **kwargs):

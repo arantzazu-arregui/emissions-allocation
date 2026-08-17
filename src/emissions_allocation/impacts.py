@@ -40,6 +40,36 @@ def compute_impacts(
     return db.sql("70_impacts").df()
 
 
+def region_membership(cfg) -> pd.DataFrame:
+    """Country -> region rows from the GCB ``Regions`` sheet (§6.3).
+
+    Many-to-many by nature: Greece is EU27, OECD and KP Annex B at once. Names are
+    resolved through the territory map first, so a dependent territory joins under
+    the party that carries its baseline.
+    """
+    from emissions_allocation.baselines import load_regions
+
+    rows = [
+        {"region": region, "country": country}
+        for region, members in load_regions(cfg).items()
+        for country in members
+    ]
+    return pd.DataFrame(rows).drop_duplicates()
+
+
+def impacts_by_region(db: Database, cfg, allocation: pd.DataFrame,
+                      baseline: pd.DataFrame) -> pd.DataFrame:
+    """§6.3 / §7 -- roll impacts up to KP Annex B, OECD, EU27 and the continents.
+
+    These are the aggregations Selin et al. report. A country belongs to several
+    groups at once, so totals must not be summed across groups.
+    """
+    db.register_frame("allocation", allocation)
+    db.register_frame("baseline", baseline)
+    db.register_frame("region_member", region_membership(cfg))
+    return db.sql("71_impacts_by_region").df()
+
+
 def concentration_share(impacts: pd.DataFrame, top_n: int = TOP_N) -> pd.DataFrame:
     """Share of allocated emissions falling to the top *n* countries.
 

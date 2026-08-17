@@ -70,3 +70,82 @@ def test_missing_columns_report_what_was_found(tmp_path) -> None:
 
 def test_unknown_imo_returns_empty_rather_than_raising(export) -> None:
     assert parse_thetis_export(export, "1234567").empty
+
+
+# ---------------------------------------------------------------------------
+# MRV scope reconstruction
+# ---------------------------------------------------------------------------
+
+
+def test_uk_leaves_eea_scope_after_the_transition() -> None:
+    """The UK was in EU MRV scope through the Brexit transition, to end-2020."""
+    from emissions_allocation.validate import eea_countries
+
+    assert "GBR" in eea_countries(2019)
+    assert "GBR" in eea_countries(2020)
+    assert "GBR" not in eea_countries(2021)
+    for year in (2019, 2021):
+        assert {"DEU", "NLD", "NOR", "ISL"} <= eea_countries(year)
+
+
+def test_anchorage_stops_are_not_ports_of_call() -> None:
+    """MRV counts a voyage from the last PORT OF CALL, excluding anchorage stops.
+
+    GFW records Suez Canal transits as port visits. Treating them as ports of call
+    breaks the Asia-Europe voyage at Suez and counts only the short final hop,
+    undercounting scope roughly fourfold.
+    """
+    from emissions_allocation.validate import mrv_scope_hours
+
+    hours = pd.DataFrame({"ts": pd.date_range("2019-01-01", periods=240, freq="h")})
+    calls = pd.DataFrame([
+        # A cargo call in Asia, then a Suez ANCHORAGE, then a cargo call in Rotterdam.
+        {"start_ts": pd.Timestamp("2019-01-01"), "end_ts": pd.Timestamp("2019-01-02"),
+         "port_iso3": "CHN", "at_dock": True},
+        {"start_ts": pd.Timestamp("2019-01-05"), "end_ts": pd.Timestamp("2019-01-06"),
+         "port_iso3": "EGY", "at_dock": False},
+        {"start_ts": pd.Timestamp("2019-01-09"), "end_ts": pd.Timestamp("2019-01-10"),
+         "port_iso3": "NLD", "at_dock": True},
+    ])
+    scope = mrv_scope_hours(hours, calls, 2019)
+    # The whole China -> Rotterdam voyage counts, not just the Suez -> Rotterdam hop.
+    assert scope.sum() > 24 * 6
+    assert scope[hours.ts == pd.Timestamp("2019-01-03")].all()
+
+
+def test_scope_excludes_voyages_that_never_touch_the_eea() -> None:
+    from emissions_allocation.validate import mrv_scope_hours
+
+    hours = pd.DataFrame({"ts": pd.date_range("2019-01-01", periods=240, freq="h")})
+    calls = pd.DataFrame([
+        {"start_ts": pd.Timestamp("2019-01-01"), "end_ts": pd.Timestamp("2019-01-02"),
+         "port_iso3": "CHN", "at_dock": True},
+        {"start_ts": pd.Timestamp("2019-01-06"), "end_ts": pd.Timestamp("2019-01-07"),
+         "port_iso3": "KOR", "at_dock": True},
+    ])
+    assert not mrv_scope_hours(hours, calls, 2019).any()
+
+
+def test_dock_share_is_reported_honestly() -> None:
+    """at_dock is a sparse proxy -- 17% for vessel A -- and the check says so."""
+    from emissions_allocation.validate import dock_call_share
+
+    calls = pd.DataFrame({"at_dock": [True] * 68 + [False] * 321})
+    assert dock_call_share(calls) == pytest.approx(0.175, abs=0.005)
+
+
+def test_sparse_reconstruction_reports_pending_not_a_ratio(tmp_path) -> None:
+    """A scope that cannot be rebuilt must not emit a number that looks like a verdict."""
+    from emissions_allocation.config import load_config
+    from emissions_allocation.validate import PENDING, compare_thetis_mrv
+
+    cfg = load_config()
+    calls = pd.DataFrame({"at_dock": [False] * 100, "start_ts": pd.NaT,
+                          "end_ts": pd.NaT, "port_iso3": "CHN"})
+    check = compare_thetis_mrv(
+        cfg, pd.DataFrame({"year": [2018], "smoothing_window": [3],
+                           "power_estimate": ["A"], "co2_tonnes": [1.0]}),
+        cfg.vessel(VESSEL_A), pd.DataFrame({"ts": [], "smoothing_window": []}), calls,
+    )
+    assert check.status == PENDING
+    assert "at_dock" in check.detail

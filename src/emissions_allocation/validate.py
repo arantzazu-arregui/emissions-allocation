@@ -269,7 +269,88 @@ def check_smoothing_sensitivity(spine: pd.DataFrame, cfg: Config) -> Check:
     )
 
 
-def compare_thetis_mrv(cfg: Config, emissions_year: pd.DataFrame, vessel: Vessel) -> Check:
+# ---------------------------------------------------------------------------
+# MRV scope reconstruction
+# ---------------------------------------------------------------------------
+
+# EEA for MRV purposes: EU27 plus Norway and Iceland. The UK was in scope through
+# the Brexit transition, which ended 31 December 2020.
+_EEA_EXTRA = {"NOR", "ISL"}
+UK_IN_SCOPE_THROUGH = 2020
+
+# Below this share of port calls carrying a usable port-of-call flag, the scope
+# reconstruction is too sparse to compare against, and the check reports PENDING
+# rather than a ratio that looks like a verdict.
+MIN_DOCK_SHARE = 0.10
+
+
+def eea_countries(year: int) -> set[str]:
+    """EEA membership for MRV scope in a given reporting year."""
+    from emissions_allocation.activity import EU27
+
+    members = set(EU27) | _EEA_EXTRA
+    if year <= UK_IN_SCOPE_THROUGH:
+        members.add("GBR")
+    return members
+
+
+def _naive(value) -> pd.Timestamp:
+    """Drop the timezone so event timestamps compare against the naive hour spine."""
+    stamp = pd.Timestamp(value)
+    return stamp.tz_localize(None) if stamp.tz is not None else stamp
+
+
+def dock_call_share(port_calls: pd.DataFrame) -> float:
+    """Fraction of port calls carrying the ``at_dock`` flag.
+
+    The honest weakness of this reconstruction. GFW flags 68 of vessel A's 389
+    calls, so entire years can reconstruct to zero scope -- which has to be reported
+    as PENDING, not as a modelled figure of zero.
+    """
+    return float(port_calls["at_dock"].mean()) if len(port_calls) else 0.0
+
+
+def mrv_scope_hours(
+    emissions_hour: pd.DataFrame, port_calls: pd.DataFrame, year: int
+) -> pd.Series:
+    """Which modelled hours fall inside EU MRV scope, as a boolean Series.
+
+    MRV counts a voyage from the **last port of call** to an EEA port, and from an
+    EEA port to the next port of call, plus time at berth in EEA ports.
+
+    The trap is its definition of "port of call", which **excludes stops at
+    anchorage**. GFW records Suez Canal transit anchorages as port visits, so a
+    naive reconstruction breaks the Asia-Europe voyage at Suez and counts only the
+    short Suez-to-Europe hop -- undercounting scope roughly fourfold. Only calls
+    flagged ``at_dock`` are treated as ports of call here.
+    """
+    calls = port_calls[port_calls["at_dock"]].sort_values("start_ts").reset_index(drop=True)
+    if calls.empty:
+        return pd.Series(False, index=emissions_hour.index)
+
+    calls = calls.copy()
+    calls["prev_end"] = calls["end_ts"].shift()
+    calls["prev_iso"] = calls["port_iso3"].shift()
+
+    eea = eea_countries(year)
+    ts = emissions_hour["ts"]
+    in_scope = pd.Series(False, index=emissions_hour.index)
+
+    # Voyages with an EEA port at either end, counted in full.
+    for leg in calls.dropna(subset=["prev_end"]).itertuples():
+        if leg.prev_iso in eea or leg.port_iso3 in eea:
+            in_scope |= (ts >= _naive(leg.prev_end)) & (ts < _naive(leg.start_ts))
+
+    # Time at berth in EEA ports.
+    for call in calls[calls["port_iso3"].isin(eea)].itertuples():
+        in_scope |= (ts >= _naive(call.start_ts)) & (ts < _naive(call.end_ts))
+
+    return in_scope
+
+
+def compare_thetis_mrv(cfg: Config, emissions_year: pd.DataFrame, vessel: Vessel,
+                       emissions_hour: pd.DataFrame | None = None,
+                       port_calls: pd.DataFrame | None = None) -> Check:
     """Modelled annual CO2 against THETIS-MRV verified figures.
 
     The only genuine external ground truth available. Returns PENDING when no
@@ -326,48 +407,77 @@ def compare_thetis_mrv(cfg: Config, emissions_year: pd.DataFrame, vessel: Vessel
         )
     reported = reported.drop_duplicates(subset=["year"]).sort_values("year")
 
-    # Compare on the scenario the run treats as headline: w=3, per power estimate.
-    modelled = (
-        emissions_year[emissions_year["smoothing_window"] == 3]
-        .pivot_table(index="year", columns="power_estimate", values="co2_tonnes")
-    )
-    merged = reported.set_index("year").join(modelled, how="inner")
-    if merged.empty:
+    # LIKE-FOR-LIKE. The earlier version compared the modelled GLOBAL total against
+    # an EU-scope reported figure and called the ratio a result. It is not: the ratio
+    # then tracks how much the hull traded in Europe that year, not the model. For
+    # vessel B it ran from 1.4x to 14.6x for exactly that reason.
+    share = dock_call_share(port_calls) if port_calls is not None else 0.0
+    if port_calls is None or share < MIN_DOCK_SHARE:
         return Check(
-            "THETIS-MRV", WARN,
-            f"no overlapping years (reported {sorted(reported['year'])}, "
-            f"modelled {sorted(modelled.index)})",
+            "THETIS-MRV", PENDING,
+            f"reported figures read for {len(reported)} year(s), but MRV scope cannot "
+            f"be reconstructed: only {share:.0%} of port calls carry the at_dock flag "
+            f"needed to tell a cargo port of call from an anchorage stop "
+            f"(threshold {MIN_DOCK_SHARE:.0%})",
+            basis=(
+                "MRV counts a voyage from the last PORT OF CALL, and its definition "
+                "excludes anchorage stops. Without that distinction the comparison is "
+                "not like-for-like."
+            ),
+            data={"dock_share": share, "reported_years": reported["year"].tolist()},
         )
 
-    estimate_cols = [c for c in modelled.columns]
-    ratios = {c: (merged[c] / merged["reported_co2_t"]).median() for c in estimate_cols}
+    modelled = emissions_year[emissions_year["smoothing_window"] == 3]
+    estimates = sorted(modelled["power_estimate"].unique())
+
+    rows = []
+    for year in sorted(set(reported["year"]) & set(modelled["year"])):
+        hours = emissions_hour[
+            (emissions_hour["smoothing_window"] == 3)
+            & (emissions_hour["ts"].dt.year == year)
+        ]
+        if hours.empty:
+            continue
+        scope = mrv_scope_hours(hours, port_calls, year)
+        row = {"year": year,
+               "reported_t": float(reported.set_index("year").loc[year, "reported_co2_t"])}
+        for estimate in estimates:
+            subset = hours[(hours["power_estimate"] == estimate) & scope]
+            row[estimate] = float(subset["co2_tonnes"].sum())
+        rows.append(row)
+
+    if not rows:
+        return Check("THETIS-MRV", PENDING, "no overlapping years with modelled hours")
+
+    table = pd.DataFrame(rows)
+    usable = table[table[estimates].sum(axis=1) > 0]
+    if usable.empty:
+        return Check(
+            "THETIS-MRV", PENDING,
+            f"{len(table)} overlapping year(s) but MRV scope reconstructed to zero "
+            f"emissions in all of them -- no EEA dock call fell in these years",
+            basis="at_dock is a sparse proxy for a cargo port of call",
+            data={"dock_share": share},
+        )
+
+    ratios = {e: float((usable[e] / usable["reported_t"]).median()) for e in estimates}
     closest = min(ratios, key=lambda k: abs(ratios[k] - 1.0))
-
-    # THETIS-MRV covers voyages into, out of and between EEA ports plus time at
-    # berth there. This model covers the hull's entire global activity, and vessel A
-    # trades overwhelmingly outside Europe. The modelled figure should therefore
-    # EXCEED the reported one -- a ratio below 1 means the model is understating
-    # even the European subset, which would be a genuine failure.
     detail = (
-        f"{len(merged)} overlapping year(s); modelled/reported ratio "
-        + ", ".join(f"{c}={ratios[c]:.2f}x" for c in estimate_cols)
-        + f" (closest: {closest})"
+        f"{len(usable)} year(s) comparable in MRV scope; modelled/verified "
+        + ", ".join(f"{e}={ratios[e]:.2f}x" for e in estimates)
+        + f" (closest: {closest}); at_dock covers {share:.0%} of calls"
     )
-    status = PASS if all(r >= 1.0 for r in ratios.values()) else WARN
-    if status == WARN:
-        detail += (
-            " -- a ratio BELOW 1 means the model understates even the EU subset, "
-            "which the global scope should strictly exceed"
-        )
+    # Within 25% is close agreement for a bottom-up model with no observed engine
+    # parameters; beyond that the estimate is saying something and should be read.
+    status = PASS if any(0.75 <= r <= 1.25 for r in ratios.values()) else WARN
     return Check(
         "THETIS-MRV", status, detail,
         basis=(
-            "EU-scope verified emissions as a LOWER BOUND on global CO2: MRV covers "
-            "voyages into/out of/between EEA ports plus at-berth there, this model "
-            "covers all activity"
+            "modelled emissions restricted to MRV scope against EMSA-verified "
+            "figures -- the only external ground truth in this project"
         ),
-        data={"ratios": ratios, "closest_estimate": closest,
-              "comparison": merged.reset_index().to_dict("records")},
+        data={"ratios": ratios, "closest_estimate": closest, "dock_share": share,
+              "comparison": usable.to_dict("records")},
     )
 
 
@@ -440,7 +550,7 @@ def run_all(
         check_port_call_agreement(emissions_hour, port_calls),
         check_fleet_envelope(estimates, cfg),
         check_smoothing_sensitivity(spine, cfg),
-        compare_thetis_mrv(cfg, emissions_year, vessel),
+        compare_thetis_mrv(cfg, emissions_year, vessel, emissions_hour, port_calls),
     ]
 
 
