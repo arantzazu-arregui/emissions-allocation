@@ -25,24 +25,22 @@ WITH allocated AS (
         a.scenario_id,
         a.power_estimate,
         a.smoothing_window,
-        a.hk_treatment,
         sum(a.co2_mt)                       AS delta_e_mt,
         count(DISTINCT a.gcb_name)          AS n_countries,
         list(DISTINCT a.gcb_name)           AS countries
     FROM allocation    AS a
     JOIN region_member AS m ON m.country = a.gcb_name
     GROUP BY m.region, a.option, a.year, a.scenario_id,
-             a.power_estimate, a.smoothing_window, a.hk_treatment
+             a.power_estimate, a.smoothing_window
 ),
 group_baseline AS (
     SELECT
         m.region,
         b.year,
-        b.hk_treatment,
         sum(b.mtco2) AS baseline_mt
     FROM baseline      AS b
     JOIN region_member AS m ON m.country = b.country
-    GROUP BY m.region, b.year, b.hk_treatment
+    GROUP BY m.region, b.year
 )
 SELECT
     a.region,
@@ -51,7 +49,6 @@ SELECT
     a.scenario_id,
     a.power_estimate,
     a.smoothing_window,
-    a.hk_treatment,
     a.delta_e_mt,
     g.baseline_mt,
     100.0 * a.delta_e_mt / nullif(g.baseline_mt, 0) AS delta_e_pct,
@@ -61,5 +58,4 @@ FROM allocated      AS a
 JOIN group_baseline AS g
   ON g.region       = a.region
  AND g.year         = a.year
- AND g.hk_treatment = a.hk_treatment
 ORDER BY a.option, a.year, a.region, a.delta_e_mt DESC;

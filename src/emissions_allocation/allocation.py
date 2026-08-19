@@ -10,12 +10,8 @@ At n = 2 the allocation reduces to assigning each vessel's total to one country 
 option, but the SQL is written as the general fleet aggregation so scaling needs no
 change.
 
-**The contrast is the result.** Vessel A's four options converge on a single country
-once Hong Kong folds into China, and 3-to-1 otherwise. A vessel B on an open registry
-would diverge by construction. Reporting them side by side is what makes the
-comparison interpretable at this scale: it shows that the choice of allocation rule
-redistributes responsibility for some ships and not others, and that the ships it
-moves are systematically those on open registries.
+Vessel A's four options converge on China under the paper's fixed country alignment;
+vessel B remains the open-registry contrast whose options diverge by construction.
 """
 
 from __future__ import annotations
@@ -24,7 +20,7 @@ import logging
 
 import pandas as pd
 
-from emissions_allocation.config import Config, Vessel
+from emissions_allocation.config import Config
 from emissions_allocation.db import Database
 
 log = logging.getLogger(__name__)
@@ -37,15 +33,13 @@ ALLOCATION_OPTIONS = ("flag", "owner", "manager", "operator")
 DOMESTIC_THRESHOLD = 0.95
 
 
-def vessel_key_table(cfg: Config, hk_treatment: str) -> pd.DataFrame:
+def vessel_key_table(cfg: Config) -> pd.DataFrame:
     """One row per (imo, option) with the country that rule selects.
 
     ``gcb_name`` is the Global Carbon Budget's country name, which is what the
     baseline join uses -- the GCB keys its columns by name, not ISO3.
 
-    Hong Kong is the one key whose GCB name depends on the treatment: under
-    ``folded_into_china`` a Hong Kong flag resolves to China's baseline, which is
-    what makes vessel A's allocation fully degenerate.
+    Hong Kong resolves to China under the paper's fixed supplementary-table mapping.
     """
     rows = []
     for vessel in cfg:
@@ -57,13 +51,12 @@ def vessel_key_table(cfg: Config, hk_treatment: str) -> pd.DataFrame:
             # as config rather than as a special case in this function.
             gcb_name = key.get("gcb_name")
             if gcb_name:
-                gcb_name = cfg.resolve_territory(gcb_name, hk_treatment)
+                gcb_name = cfg.resolve_territory(gcb_name)
             rows.append({
                 "imo": vessel.imo,
                 "option": option,
                 "country": key.get("country"),
                 "gcb_name": gcb_name,
-                "hk_treatment": hk_treatment,
                 "is_proxy": "PROXY" in str(key.get("method", "")),
             })
     return pd.DataFrame(rows)
@@ -80,18 +73,12 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
 
     Returns:
         ``option, country, gcb_name, year, scenario_id, ..., co2_tonnes, co2_mt``
-        for every configured Hong Kong treatment.
+        using the paper-aligned country mapping.
     """
     db.register_frame("emissions_year", emissions_year)
 
-    frames = []
-    for treatment in cfg.run["hk_treatments"]:
-        db.register_frame("vessel_key", vessel_key_table(cfg, treatment))
-        frame = db.sql("50_allocation").df()
-        frame["hk_treatment"] = treatment
-        frames.append(frame)
-
-    return pd.concat(frames, ignore_index=True)
+    db.register_frame("vessel_key", vessel_key_table(cfg))
+    return db.sql("50_allocation").df()
 
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:
@@ -132,25 +119,21 @@ def register_eez(db: Database, cfg: Config) -> int:
     return count
 
 
-def summarise_options(cfg: Config, hk_treatment: str) -> pd.DataFrame:
+def summarise_options(cfg: Config) -> pd.DataFrame:
     """Side-by-side view of every vessel's four allocation keys.
 
     This table is the qualitative result at n = 2: whether the rules agree or
     diverge, and for which hulls.
     """
-    table = vessel_key_table(cfg, hk_treatment)
+    table = vessel_key_table(cfg)
     wide = table.pivot(index="imo", columns="option", values="country")
 
     # Degeneracy is judged on the GCB name, not the ISO3 code, because the GCB name
     # is what decides which national budget the emissions actually land on.
     #
-    # This distinction is the whole Hong Kong question. Under `folded_into_china` a
-    # HKG-flagged hull keeps its ISO3 -- the flag really is Hong Kong -- but its
-    # emissions join to China's baseline, so all four options resolve to one budget
-    # and the comparison the paper is built on produces nothing. Judging on ISO3
-    # would report a flag-versus-owner split that has no effect on any result.
+    # The ISO3 flag remains HKG, but it joins to China's budget under the paper's
+    # country map. Degeneracy must therefore be judged on the GCB name.
     by_budget = table.pivot(index="imo", columns="option", values="gcb_name")
     wide["n_distinct_countries"] = by_budget[list(ALLOCATION_OPTIONS)].nunique(axis=1)
     wide["is_degenerate"] = wide["n_distinct_countries"] == 1
-    wide["hk_treatment"] = hk_treatment
     return wide.reset_index()

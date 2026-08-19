@@ -106,10 +106,9 @@ def test_vessel_b_gives_the_divergence_vessel_a_cannot(cfg) -> None:
     national budgets, where vessel A's four options collapse onto one."""
     from emissions_allocation.allocation import summarise_options
 
-    for treatment in cfg.run["hk_treatments"]:
-        row = summarise_options(cfg, treatment).set_index("imo").loc["9277802"]
-        assert row["n_distinct_countries"] == 3
-        assert not row["is_degenerate"]
+    row = summarise_options(cfg).set_index("imo").loc["9277802"]
+    assert row["n_distinct_countries"] == 3
+    assert not row["is_degenerate"]
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +275,6 @@ def test_unknown_allocation_option_raises(cfg) -> None:
 def test_scenarios_are_the_cross_join(cfg) -> None:
     expected = (
         len(cfg.run["power_estimates"])
-        * len(cfg.run["hk_treatments"])
         * len(cfg.run["smoothing_windows"])
     )
     assert len(cfg.scenarios()) == expected
@@ -290,11 +288,6 @@ def test_scenario_ids_are_unique(cfg) -> None:
 def test_unsmoothed_baseline_is_carried(cfg) -> None:
     """w=1 is the unsmoothed series that shows the 1.67x v^3 bias."""
     assert 1 in cfg.run["smoothing_windows"]
-
-
-def test_both_hong_kong_treatments_are_carried(cfg) -> None:
-    """§6.4: decisive for vessel A and not obviously correct either way."""
-    assert set(cfg.run["hk_treatments"]) == {"separate", "folded_into_china"}
 
 
 def test_even_smoothing_window_is_rejected(tmp_path) -> None:
@@ -313,4 +306,23 @@ def test_even_smoothing_window_is_rejected(tmp_path) -> None:
         encoding="utf-8",
     )
     with pytest.raises(ConfigError, match="must be odd"):
+        load_config(tmp_path)
+
+
+def test_invalid_configured_imo_is_rejected(tmp_path) -> None:
+    """A configured ship IMO must have seven digits and a valid checksum."""
+    import shutil
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[1] / "config"
+    for name in ("pilot.yaml", "vessel_specs.yaml", "emission_factors.yaml",
+                 "eexi_parameters.yaml"):
+        shutil.copy(source / name, tmp_path / name)
+
+    pilot = (tmp_path / "pilot.yaml").read_text(encoding="utf-8")
+    (tmp_path / "pilot.yaml").write_text(
+        pilot.replace('imo: "9516454"', 'imo: "95164540"', 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="seven digits"):
         load_config(tmp_path)

@@ -77,6 +77,8 @@ def build_hour_model(
     estimate: PowerEstimate,
     window: int,
     modes: pd.Series,
+    speed_prefix: str = "sog",
+    gap_treatment: str = "linear_coverage",
 ) -> pd.DataFrame:
     """Per-hour power demand, SFC and emission factor for one scenario.
 
@@ -95,8 +97,9 @@ def build_hour_model(
         "imo": spine["imo"],
         "ts": spine["ts"],
         "is_inactive": spine["is_inactive"],
-        "sog": spine[f"sog_w{window}"],
+        "sog": spine[f"{speed_prefix}_w{window}"],
         "operating_mode": modes,
+        "gap_treatment": gap_treatment,
     })
     out["me_load"] = main_engine_load(out["sog"].fillna(0.0), estimate.design_speed_kn)
 
@@ -194,7 +197,7 @@ def register_distance_layers(db: Database, cfg: Config, spine: pd.DataFrame) -> 
 
 def assign_modes(
     db: Database, spine: pd.DataFrame, vessel: Vessel, cfg: Config,
-    estimate: PowerEstimate, window: int,
+    estimate: PowerEstimate, window: int, speed_prefix: str = "sog",
 ) -> pd.Series:
     """Run the Table 16 matrix for one scenario and return the mode per hour."""
     hour_load = pd.DataFrame({
@@ -202,7 +205,7 @@ def assign_modes(
         "ts": spine["ts"],
         "lat": spine["lat"],
         "lon": spine["lon"],
-        "sog": spine[f"sog_w{window}"].fillna(0.0),
+        "sog": spine[f"{speed_prefix}_w{window}"].fillna(0.0),
     })
     hour_load["me_load"] = main_engine_load(hour_load["sog"], estimate.design_speed_kn)
     db.register_frame("hour_load", hour_load)
@@ -221,8 +224,17 @@ def annual_emissions(
     db: Database, cfg: Config, vessel: Vessel, spine: pd.DataFrame,
     fuel_assignment: pd.DataFrame, coverage: pd.DataFrame,
     estimates: dict[str, PowerEstimate],
+    *,
+    speed_prefix: str = "sog",
+    gap_treatment: str = "linear_coverage",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run every scenario and return ``(emissions_hour, emissions_year)``."""
+    """Run every scenario and return ``(emissions_hour, emissions_year)``.
+
+    ``speed_prefix`` selects a parallel speed treatment (for example
+    ``sog_imo2020`` for the adapted Fourth IMO GHG Study sensitivity) without
+    changing the primary series. ``gap_treatment`` is persisted on every output
+    row so separate treatment results cannot be silently combined.
+    """
     ship_type, size, _unit = size_for_table17(vessel, cfg)
     db.register_frame("fuel_assignment", fuel_assignment)
     db.register_frame("coverage", coverage)
@@ -232,12 +244,12 @@ def annual_emissions(
         for window in cfg.run["smoothing_windows"]:
             scenario_id_stub = f"{name}_w{window}"
 
-            modes = assign_modes(db, spine, vessel, cfg, estimate, window)
+            modes = assign_modes(db, spine, vessel, cfg, estimate, window, speed_prefix)
             model = build_hour_model(
                 spine, vessel, cfg, estimate, window,
                 modes.reindex(
                     pd.MultiIndex.from_arrays([spine["imo"], spine["ts"]])
-                ).to_numpy(),
+                ).to_numpy(), speed_prefix, gap_treatment,
             )
             model = attach_fuel_dependent_terms(model, fuel_assignment, vessel, cfg)
             model["scenario_id"] = scenario_id_stub

@@ -326,6 +326,17 @@ fuel_assignment:
   residual_fuel: HFO
   distillate_fuel: MDO
 
+  # Fleet-only fallback; inactive for the pilot. Apply Table 9 to IHS main-fuel
+  # fields first, then infill an unresolved vessel from the unique modal fuel of
+  # successfully allocated peers in the same vessel-type x size-bin group.
+  # It never replaces the primary vessel-hour location/voyage rule.
+  imo_table_9_fallback:
+    enabled: false
+    source: "Fourth IMO GHG Study 2020, printed pp. 46-47, Table 9"
+    method: "IHS FuelType1First/FuelType2Second allocation, then vessel-type x size-bin modal infill"
+    group_by: [vessel_type, size_bin]
+    primary_rule_precedence: true
+
   eca:
     source: "Marine Regions -- MARPOL Annex VI Regulation 14 (SOx and PM)"
     file: data/external/marineregions/eca_reg14_sox_pm.zip

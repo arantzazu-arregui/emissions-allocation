@@ -31,7 +31,7 @@ Outputs: ``vessel_hour``, ``port_call``, ``voyage_leg``.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Sequence
 
 import numpy as np
@@ -99,6 +99,138 @@ def load_presence(
         "hours": raw["hours"].astype(float),
     })
     return _resolve_hour_grain(out.sort_values("ts").reset_index(drop=True))
+
+
+def load_observed_presence(
+    client: GFWClient, cfg: Config, vessel: Vessel
+) -> pd.DataFrame:
+    """Acquire GFW presence across its complete available archive for one vessel.
+
+    Parameters
+    ----------
+    client : GFWClient
+        Authenticated Global Fishing Watch API client.
+    cfg : Config
+        Pipeline configuration, including the GFW archive start and rolling lag.
+    vessel : Vessel
+        Configured vessel whose exact name history is queried.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Observed hourly positions from 2012 through the API availability boundary.
+        Empty calendar years are retained later as ``unobserved`` in the yearly
+        activity table; they are not treated as API failures.
+
+    Notes
+    -----
+    This is deliberately separate from :func:`load_presence`, which remains the
+    strict, fixed-study-window input to the emissions model. GFW zero observations
+    cannot establish that a ship was inactive.
+    """
+    frames: list[pd.DataFrame] = []
+    start = cfg.gfw_observation_start_date
+    end = cfg.gfw_observation_end_date
+    cursor = start
+    while cursor < end:
+        next_year = date(cursor.year + 1, 1, 1)
+        chunk_end = min(next_year, end)
+        if cursor == date(cursor.year, 1, 1) and chunk_end == next_year:
+            records = client.presence_year(vessel.shipnames, cursor.year)
+        else:
+            records = client.presence_range(
+                vessel.shipnames, cursor.isoformat(), chunk_end.isoformat()
+            )
+        if records:
+            kept = assert_presence(
+                records, vessel.imo,
+                datetime.combine(cursor, datetime.min.time()),
+                datetime.combine(chunk_end, datetime.min.time()),
+                coverage_floor=0.0,
+                coverage_warn=0.0,
+                context=f"{cursor} to {chunk_end} GFW archive",
+            )
+            frames.append(pd.DataFrame(kept))
+        cursor = chunk_end
+
+    if not frames:
+        return pd.DataFrame(columns=["imo", "ts", "lat", "lon", "hours"])
+    raw = pd.concat(frames, ignore_index=True)
+    out = pd.DataFrame({
+        "imo": raw["imo"].astype(str),
+        "ts": pd.to_datetime(raw["date"], format="%Y-%m-%d %H:%M"),
+        "lat": raw["lat"].astype(float),
+        "lon": raw["lon"].astype(float).round(5),
+        "hours": raw["hours"].astype(float),
+    })
+    return _resolve_hour_grain(out.sort_values("ts").reset_index(drop=True))
+
+
+def observed_activity_by_year(
+    presence: pd.DataFrame,
+    vessel: Vessel,
+    start_date: date,
+    end_date: date,
+    min_observed_hours: int,
+    min_observed_days: int,
+) -> pd.DataFrame:
+    """Classify each calendar year as GFW-observed active or unobserved.
+
+    Parameters
+    ----------
+    presence : pandas.DataFrame
+        GFW hourly presence with ``ts`` and ``hours`` columns.
+    vessel : Vessel
+        Vessel represented by the observations.
+    start_date, end_date : datetime.date
+        Inclusive archive bounds for reporting years.
+    min_observed_hours : int
+        Minimum observed AIS-presence hours for ``observed_active``.
+    min_observed_days : int
+        Minimum distinct calendar days with observations for that label.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per vessel-year, with observation counts and an ``activity_state``.
+
+    Notes
+    -----
+    ``unobserved`` is not an IMO inactive status. It only records insufficient GFW
+    evidence, so it prevents a fleet analysis from converting AIS non-detection
+    into a claim that the ship was inactive.
+    """
+    years = pd.DataFrame({"year": range(start_date.year, end_date.year + 1)})
+    if presence.empty:
+        grouped = pd.DataFrame(columns=["year", "observed_hours", "observed_days"])
+    else:
+        observed = presence.assign(
+            year=presence["ts"].dt.year,
+            day=presence["ts"].dt.normalize(),
+        )
+        grouped = observed.groupby("year", as_index=False).agg(
+            observed_hours=("hours", "sum"), observed_days=("day", "nunique")
+        )
+    out = years.merge(grouped, on="year", how="left").fillna(0)
+    out["imo"] = vessel.imo
+    is_observed = (
+        (out["observed_hours"] >= min_observed_hours)
+        & (out["observed_days"] >= min_observed_days)
+    )
+    out["activity_state"] = np.where(is_observed, "observed_active", "unobserved")
+    return out[["imo", "year", "observed_hours", "observed_days", "activity_state"]]
+
+
+def assert_study_years_observed_active(activity: pd.DataFrame, cfg: Config, vessel: Vessel) -> None:
+    """Require the GFW-observed activity screen for every analysis year."""
+    eligible = set(activity.loc[activity["activity_state"] == "observed_active", "year"])
+    missing = sorted(set(cfg.years) - eligible)
+    if missing:
+        raise ValueError(
+            f"IMO {vessel.imo} is unobserved by GFW in study year(s) {missing} under "
+            "the configured observed-activity threshold. This is not evidence of "
+            "IMO inactivity; obtain a registry status source or exclude the vessel."
+        )
 
 
 def _resolve_hour_grain(frame: pd.DataFrame) -> pd.DataFrame:
@@ -276,6 +408,147 @@ def add_smoothed_speeds(frame: pd.DataFrame, windows: Iterable[int]) -> pd.DataF
         )
         out.loc[out["is_inactive"], column] = np.nan
     return out
+
+
+def add_imo2020_port_phase_sensitivity(
+    frame: pd.DataFrame,
+    port_calls: pd.DataFrame,
+    windows: Iterable[int],
+    *,
+    transition_hours: int = 6,
+    min_gap_hours: float = 6.0,
+    max_gap_hours: float = 72.0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Add an adapted Fourth IMO GHG Study SOG-infill sensitivity branch.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame
+        Complete hourly vessel spine with ``sog_raw``, ``is_interpolated`` and
+        ``is_inactive`` columns. ``sog_raw`` remains the primary linear-infill
+        series and is never modified.
+    port_calls : pandas.DataFrame
+        GFW port-visit events carrying ``start_ts`` and ``end_ts``. These events
+        define port-to-port voyages because an absent GFW presence hour has no AIS
+        activity report from which the Fourth Study's original SOG phase rule can
+        be evaluated.
+    windows : iterable of int
+        Odd centred smoothing-window widths in hours.
+    transition_hours : int, default=6
+        Hours adjacent to each port-call boundary classified as transition.
+    min_gap_hours, max_gap_hours : float, default=6, 72
+        Bounds imposed on the median inter-port voyage duration when deciding
+        whether a missing run is short enough for phase-mean infill.
+
+    Returns
+    -------
+    tuple[pandas.DataFrame, pandas.DataFrame]
+        A copied spine with ``imo2020_phase``, ``sog_imo2020_raw`` and one
+        ``sog_imo2020_w<n>`` column per smoothing window, plus a one-row audit
+        table containing the threshold and affected hours.
+
+    Notes
+    -----
+    This is a sensitivity experiment, not the primary gap treatment. The Fourth
+    IMO GHG Study applies its method where an activity record exists but SOG is
+    missing. GFW presence gaps lack position and SOG together, and its
+    centroid-derived SOG cannot reliably reproduce the study's 90th-percentile
+    voyage-phase classifier. Port events therefore provide the phase proxy here.
+
+    Only short, non-inactive reception gaps are replaced with the mean *observed*
+    SOG for their port-event phase. Long gaps retain the primary linear-infill
+    value and remain covered by the existing active-coverage correction; replacing
+    a whole voyage would create unsupportable spatial activity.
+    """
+    if transition_hours < 0:
+        raise ValueError("transition_hours must be non-negative")
+    if min_gap_hours <= 0 or max_gap_hours < min_gap_hours:
+        raise ValueError("gap-hour bounds must satisfy 0 < min <= max")
+
+    out = frame.copy()
+    if "is_inactive" not in out.columns:
+        out["is_inactive"] = False
+    out["imo2020_phase"] = "voyage"
+    out.loc[out["is_inactive"], "imo2020_phase"] = "inactive"
+
+    # Port events are UTC-aware whereas the hourly spine is deliberately naive.
+    # Convert both boundaries before comparing them to the spine timestamps.
+    for call in port_calls.itertuples():
+        start = pd.Timestamp(call.start_ts)
+        end = pd.Timestamp(call.end_ts)
+        if start.tz is not None:
+            start = start.tz_localize(None)
+        if end.tz is not None:
+            end = end.tz_localize(None)
+        in_port = (out["ts"] >= start) & (out["ts"] <= end) & ~out["is_inactive"]
+        out.loc[in_port, "imo2020_phase"] = "port"
+        before = (
+            (out["ts"] >= start - pd.Timedelta(hours=transition_hours))
+            & (out["ts"] < start)
+            & ~out["is_inactive"]
+            & (out["imo2020_phase"] != "port")
+        )
+        after = (
+            (out["ts"] > end)
+            & (out["ts"] <= end + pd.Timedelta(hours=transition_hours))
+            & ~out["is_inactive"]
+            & (out["imo2020_phase"] != "port")
+        )
+        out.loc[before | after, "imo2020_phase"] = "transition"
+
+    calls = port_calls.copy()
+    if calls.empty:
+        inter_port_hours = pd.Series(dtype=float)
+    else:
+        for column in ("start_ts", "end_ts"):
+            calls[column] = pd.to_datetime(calls[column], utc=True).dt.tz_localize(None)
+        calls = calls.sort_values("start_ts")
+        inter_port_hours = (
+            calls["start_ts"].shift(-1) - calls["end_ts"]
+        ).dt.total_seconds().div(3600)
+        inter_port_hours = inter_port_hours[inter_port_hours > 0]
+    median_hours = float(inter_port_hours.median()) if not inter_port_hours.empty else min_gap_hours
+    threshold_hours = float(np.clip(median_hours, min_gap_hours, max_gap_hours))
+
+    observed = (~out["is_interpolated"]) & (~out["is_inactive"]) & out["sog_raw"].notna()
+    phase_means = out.loc[observed].groupby("imo2020_phase")["sog_raw"].mean()
+    fallback_speed = float(out.loc[observed, "sog_raw"].mean()) if observed.any() else 0.0
+    phase_means = phase_means.reindex(["port", "transition", "voyage"]).fillna(fallback_speed)
+
+    out["sog_imo2020_raw"] = out["sog_raw"]
+    gaps = find_gaps(out.loc[~out["is_inactive"]].copy())
+    short_gaps = gaps[gaps["hours"] < threshold_hours]
+    for gap in short_gaps.itertuples():
+        in_gap = (out["ts"] >= gap.start_ts) & (out["ts"] <= gap.end_ts)
+        phases = out.loc[in_gap, "imo2020_phase"]
+        out.loc[in_gap, "sog_imo2020_raw"] = phases.map(phase_means).to_numpy()
+
+    # Maintain the no-cross-lay-up rule used by the primary smoothing branch.
+    segment = (out["is_inactive"] != out["is_inactive"].shift()).cumsum()
+    for window in windows:
+        if window % 2 == 0:
+            raise ValueError(f"smoothing window must be odd (centred); got {window}")
+        column = f"sog_imo2020_w{window}"
+        out[column] = out.groupby(segment)["sog_imo2020_raw"].transform(
+            lambda speed: smooth_speed(speed, window)
+        )
+        out.loc[out["is_inactive"], column] = np.nan
+
+    audit = pd.DataFrame([{
+        "imo": out["imo"].iloc[0] if len(out) else None,
+        "method": "imo2020_port_phase",
+        "transition_hours": transition_hours,
+        "median_inter_port_hours": median_hours,
+        "missing_gap_threshold_hours": threshold_hours,
+        "short_gap_runs": len(short_gaps),
+        "short_gap_hours": int(short_gaps["hours"].sum()),
+        "long_gap_runs": int((gaps["hours"] >= threshold_hours).sum()),
+        "long_gap_hours": int(gaps.loc[gaps["hours"] >= threshold_hours, "hours"].sum()),
+        "port_mean_sog_kn": float(phase_means["port"]),
+        "transition_mean_sog_kn": float(phase_means["transition"]),
+        "voyage_mean_sog_kn": float(phase_means["voyage"]),
+    }])
+    return out, audit
 
 
 def cubic_bias(sog: pd.Series) -> float:

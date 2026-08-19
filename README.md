@@ -32,21 +32,67 @@ The spread between power estimates is a **reported result, not an error**: no fr
 supplies installed power or design speed, so no estimate is primary. Against EMSA-verified
 emissions, estimate A understates vessel A by 36% while estimate B matches within 2%.
 
-A second methodological finding, from §6.4 — identical emissions, two territory conventions:
-
-| Hong Kong treatment | baseline | ΔE% |
-|---|---|---|
-| separate | 33.3 Mt CO₂ | ~0.3% |
-| folded into China | 12,322 Mt CO₂ | ~0.001% |
-
-A ~370× swing in a country's reported burden from a convention choice, not from anything the
-ship did. The Isle of Man raises the same question for RCC AMERICA's owner.
+Country assignment follows Selin et al.'s supplementary Table 1. Its published country list
+does not include Hong Kong, so the fixed replication map assigns Hong Kong to China.
 
 ## Start here
 
 **[`notebooks/01_methodology_walkthrough.ipynb`](notebooks/01_methodology_walkthrough.ipynb)**
 walks §0 to §8 with every equation sourced inline, and ships with its outputs. It reads the
 cached tables, so it opens instantly.
+
+## Terminology
+
+| Term | Definition in this project |
+|---|---|
+| **Vessel** | One physical ship, identified throughout by its stable IMO number. A vessel name, MMSI, flag, or GFW `vesselId` can change and is not the primary key. |
+| **Vessel-hour** | One hourly GFW presence observation for a vessel. It carries the position, derived speed, and activity flags used by the spatial, fuel, and emissions stages. |
+| **Port call** | One GFW Events port-visit record, from arrival through departure. It includes anchorage timestamps, a port identifier, and the port country. |
+| **Port country** | The ISO3 country code recorded by GFW for a port visit's `startAnchorage.flag`. It identifies the country of the port, not the vessel's flag or ownership country. |
+| **Voyage leg** | The derived journey between consecutive port calls. It carries start/end ports, duration, distance, and the `is_eu_eu` indicator used by the fuel rule. |
+| **Activity coverage** | Observed vessel-hours divided by expected in-service hours for a vessel and year. It is calculated before any gap treatment. |
+| **EEZ** | Exclusive Economic Zone. A vessel-hour is assigned to a World EEZ v12 polygon where possible. Unmatched hours are classified as high seas. |
+| **ECA** | Emission Control Area. MARPOL Annex VI Regulation 14 polygons identify hours subject to the ECA fuel rule. |
+| **EU-to-EU leg** | A voyage leg whose consecutive start and end ports are both in EU countries. It is determined from port-call data, rather than inferred from EEZ positions. |
+| **Scenario** | One combination of installed-power estimate and speed-smoothing window. Emissions, allocations, and impacts retain this key. |
+| **Allocation option** | A responsibility rule that assigns annual vessel CO₂ to the flag, owner, ISM manager, or commercial-manager-as-operator-proxy country. |
+| **Baseline** | A country's Global Carbon Budget territorial fossil CO₂ emissions, converted from MtC to MtCO₂, against which allocated emissions are compared. |
+
+### Variable dictionary
+
+| Variable | Definition in this project |
+|---|---|
+| **DWT (t)** | Deadweight tonnage in tonnes: the vessel's maximum carrying capacity, including cargo, fuel, stores, passengers, and crew. |
+| **Flag** | The ISO3 country or territory of the vessel's registry. It is distinct from port, owner, manager, and operator countries. |
+| **`elapsed_hours`** | Total calendar hours in a vessel-year within the study period. This is the coverage-table field; it is sometimes informally called lapsed hours. |
+| **`inactive_hours`** | Hours classified as out of service, such as a confirmed lay-up. They are excluded from the active-coverage denominator. |
+| **`observed_hours`** | Vessel-hours with an observed GFW position, rather than an interpolated position. |
+| **`coverage_raw`** | `observed_hours / elapsed_hours`. This transparent coverage measure includes inactive hours in the denominator. |
+| **`coverage_active`** | `observed_hours / (elapsed_hours - inactive_hours)`. This is the coverage measure used for the annual emissions correction. |
+| **MDO/MGO hours** | Vessel-hours assigned to distillate marine diesel oil or marine gas oil by the fuel rule, for example within an ECA or on an EU-to-EU leg. |
+| **HFO hours** | Vessel-hours assigned to residual heavy fuel oil by the fuel rule. |
+| **`sog_raw`** | Raw speed over ground in knots, derived from the great-circle distance between consecutive hourly GFW positions divided by elapsed hours. It is not a speed field returned by the GFW API. |
+| **`sog_w<n>`** | Scenario-specific centred moving-average speed over ground in knots, where `<n>` is the odd smoothing-window width in hours, such as `sog_w3`. It reduces the cubic-power bias created by quantised hourly positions. |
+| **`operating_mode`** | The activity category assigned to a vessel-hour: `at_berth`, `anchored`, `manoeuvring`, `slow_transit`, or `normal_cruising`. It determines auxiliary and boiler demand. |
+| **`sog`** | Speed over ground in knots carried into `emissions_hour`. It is the scenario's selected smoothed-speed column, such as `sog_w3`. |
+| **`me_load`** | Main-engine load as a fraction of installed power, calculated from `sog` relative to the scenario's design speed. |
+| **`w_me_kw`** | Main-engine power demand in kW for a vessel-hour. It is zero in modes without a running main engine and below the 7% MCR cutoff. |
+| **`w_ae_kw`** | Auxiliary-engine power demand in kW for a vessel-hour, selected from IMO Table 17 by vessel type, size band, and operating mode. |
+| **`w_bo_kw`** | Boiler power demand in kW for a vessel-hour, selected from IMO Table 17 by vessel type, size band, and operating mode. |
+| **`fc_total_g`** | Total fuel consumption in grams for a vessel-hour: main-engine, auxiliary-engine, and boiler consumption combined. |
+| **`co2_tonnes`** | CO₂ emissions in tonnes. At hourly grain it is calculated from `fc_total_g` and the assigned fuel emission factor; at annual grain it is the selected observed or coverage-corrected sum. |
+| **`co2_tonnes_observed`** | Annual sum of hourly `co2_tonnes` over observed and modelled active hours, before coverage correction. |
+| **`co2_tonnes_corrected`** | `co2_tonnes_observed / coverage_active`: the annual emissions estimate after correcting for missing active-hour observations. |
+| **`dominant_eez_iso3`** | ISO3 code of the EEZ containing the most vessel-hours for a vessel in the domestic/international test. |
+| **`dominant_eez_hours`** | Number of vessel-hours within `dominant_eez_iso3`. |
+| **`hours_in_any_eez`** | Number of vessel-hours assigned to any EEZ in the domestic/international test. |
+| **`hours_disputed`** | Vessel-hours in a joint-regime or overlapping EEZ claim, flagged so the territory assignment is visible. |
+| **`dominant_eez_share`** | `dominant_eez_hours / hours_in_any_eez`. A value above 95% classifies the vessel as domestic. |
+| **`is_domestic`** | `True` when `dominant_eez_share` exceeds the 95% domestic threshold. |
+| **`is_international`** | `True` when the vessel is not domestic. Only international vessels enter the allocation analysis. |
+| **`delta_e_mt_min`** | Smallest national carbon-budget increment, in MtCO₂, across all configured scenarios for a country, year, and allocation option. |
+| **`delta_e_mt_max`** | Largest national carbon-budget increment, in MtCO₂, across the same scenario set. |
+| **`spread_ratio`** | `delta_e_mt_max / delta_e_mt_min`, showing the multiplicative spread across scenarios. |
 
 ## Setup
 

@@ -9,7 +9,7 @@ tested against the payload GFW actually returns -- including its casing traps
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -19,18 +19,39 @@ import pytest
 from emissions_allocation.activity import (
     EU27,
     _parse_port_visits,
+    add_imo2020_port_phase_sensitivity,
     build_spine,
     coverage_by_year,
     cubic_bias,
     derive_speed,
     haversine_km,
     is_eu,
+    observed_activity_by_year,
     smooth_speed,
 )
+from emissions_allocation.config import load_config
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 API_SAMPLES = PROJECT_ROOT / "data" / "sample" / "api"
 VESSEL_A = "9516454"
+
+
+def test_observed_activity_distinguishes_unobserved_from_inactive() -> None:
+    """No GFW receipt is an unknown observation state, not vessel inactivity."""
+    cfg = load_config()
+    vessel = cfg.vessel(VESSEL_A)
+    presence = pd.DataFrame({
+        "ts": pd.to_datetime([
+            "2017-01-01 00:00", "2017-01-02 00:00", "2017-01-03 00:00",
+        ]),
+        "hours": [24.0, 24.0, 24.0],
+    })
+    out = observed_activity_by_year(
+        presence, vessel, date(2017, 1, 1), date(2018, 12, 31),
+        min_observed_hours=24, min_observed_days=3,
+    )
+    assert out.set_index("year").loc[2017, "activity_state"] == "observed_active"
+    assert out.set_index("year").loc[2018, "activity_state"] == "unobserved"
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +504,30 @@ def test_smoothing_does_not_cross_an_inactivity_boundary() -> None:
     assert out.loc[out["is_inactive"], "sog_w7"].isna().all()
     # The first in-service hour after the gap must not have inherited the zeros.
     assert out.loc[340, "sog_w7"] == pytest.approx(20.0)
+
+
+def test_imo2020_port_phase_sensitivity_only_replaces_short_gaps() -> None:
+    """The adapted Fourth IMO branch cannot manufacture a whole long voyage."""
+    spine = _spine_with_gap(5, 2, total_hours=30)
+    spine.loc[16:27, "is_interpolated"] = True
+    spine.loc[16:27, "hours"] = 0.0
+    spine.loc[spine["is_interpolated"], "sog_raw"] = 99.0
+    spine.loc[~spine["is_interpolated"], "sog_raw"] = 15.0
+    ports = pd.DataFrame({
+        "start_ts": pd.to_datetime(["2019-01-01 00:00", "2019-01-01 12:00"], utc=True),
+        "end_ts": pd.to_datetime(["2019-01-01 02:00", "2019-01-01 14:00"], utc=True),
+    })
+
+    out, audit = add_imo2020_port_phase_sensitivity(
+        spine, ports, [1], transition_hours=0, min_gap_hours=6, max_gap_hours=72
+    )
+
+    assert audit.loc[0, "missing_gap_threshold_hours"] == pytest.approx(10.0)
+    assert audit.loc[0, "short_gap_hours"] == 2
+    assert audit.loc[0, "long_gap_hours"] == 12
+    assert out.loc[5:6, "sog_imo2020_raw"].eq(15.0).all()
+    assert out.loc[16:27, "sog_imo2020_raw"].eq(99.0).all()
+    assert out.loc[spine["is_interpolated"], "sog_raw"].eq(99.0).all()
 
 
 # ---------------------------------------------------------------------------

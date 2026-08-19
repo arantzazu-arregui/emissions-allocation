@@ -11,10 +11,7 @@ because the fleet-scale version is where it becomes informative.
 The interpretable outputs at this scale are:
 
 * annual and total CO2 under each power/speed estimate;
-* the same figure attributed to Hong Kong versus China under the flag and owner
-  options;
-* dE% against each candidate baseline, which is where the ~369x divergence between
-  Hong Kong's 33.3 Mt and China's 12,289 Mt becomes visible;
+* allocation-rule contrasts using the paper-aligned national baselines;
 * the spread across scenarios as an explicit uncertainty band.
 """
 
@@ -78,7 +75,7 @@ def concentration_share(impacts: pd.DataFrame, top_n: int = TOP_N) -> pd.DataFra
     reader is not invited to interpret it.
     """
     grouped = impacts.groupby(
-        ["option", "scenario_id", "hk_treatment", "year"], as_index=False
+        ["option", "scenario_id", "year"], as_index=False
     ).apply(
         lambda g: pd.Series({
             "n_countries": g["country"].nunique(),
@@ -100,7 +97,7 @@ def scenario_spread(impacts: pd.DataFrame) -> pd.DataFrame:
     is no basis for preferring one estimate.
     """
     return impacts.groupby(
-        ["option", "country", "hk_treatment", "year"], as_index=False
+        ["option", "country", "year"], as_index=False
     ).agg(
         delta_e_mt_min=("delta_e_mt", "min"),
         delta_e_mt_max=("delta_e_mt", "max"),
@@ -116,21 +113,7 @@ def scenario_spread(impacts: pd.DataFrame) -> pd.DataFrame:
 def rank_countries(impacts: pd.DataFrame) -> pd.DataFrame:
     """Countries ordered by allocated emissions, per option and scenario."""
     return impacts.sort_values(
-        ["option", "scenario_id", "hk_treatment", "year", "rank_in_option"]
+        ["option", "scenario_id", "year", "rank_in_option"]
     )
 
 
-def hong_kong_sensitivity(impacts: pd.DataFrame) -> pd.DataFrame:
-    """§6.4 / §7.2 -- the same emissions against two very different denominators.
-
-    For a Hong Kong-flagged hull this is the headline methodological finding: the
-    identical tonnage is a ~369x larger share of Hong Kong's budget than of China's,
-    so the allocation rule and the territory convention interact.
-    """
-    pivot = impacts.pivot_table(
-        index=["option", "year", "scenario_id"],
-        columns="hk_treatment",
-        values=["delta_e_mt", "delta_e_pct", "baseline_mt"],
-        aggfunc="sum",
-    )
-    return pivot.reset_index()

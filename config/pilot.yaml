@@ -10,6 +10,16 @@ study:
   start_date: 2017-01-01
   end_date: 2024-12-31
 
+# GFW's AIS-presence archive is available from 2012 to approximately four days
+# before retrieval. It is acquired separately from the fixed analysis window above.
+# These thresholds define an *observed-active* label only: no observation means
+# unobserved, never inactive. See METHODOLOGY.md §0.3.
+gfw_observed_activity:
+  start_date: 2012-01-01
+  availability_lag_days: 4
+  min_observed_hours: 24
+  min_observed_days: 3
+
 vessels:
   # --- Vessel A --------------------------------------------------------------
   # Fixed. The co-located majority: flag HKG, all three commercial roles -> China.
@@ -76,11 +86,6 @@ run:
   # OPEN ITEM 5: the window is validated on one day of data only.
   smoothing_windows: [1, 3, 5, 7]
 
-  # §6.4. Hong Kong is not a separate UNFCCC party, but the GCB carries it
-  # separately from China and the two baselines differ by ~370x. Decisive for
-  # vessel A and not obviously correct either way, so both are computed.
-  hk_treatments: [separate, folded_into_china]
-
   # §2.2. Which power/speed estimates to carry. Estimates A and B are derived at
   # runtime from hull dimensions. Estimate C is a SOURCED specification and is
   # null in vessel_specs.yaml (OPEN ITEM 4) -- listing it here without supplying
@@ -138,6 +143,17 @@ run:
   # This is a documented departure from METHODOLOGY §4.5, which treats the
   # correction as uniform and negligible on the strength of 2024 alone.
   coverage_correction: true
+
+  # --- §1.7 Fourth IMO GHG Study SOG-infill sensitivity --------------------
+  # This is deliberately NOT the primary treatment. The Fourth IMO method fills
+  # a missing transmitted SOG where an activity report still exists; a missing
+  # GFW presence hour loses both position and SOG. We therefore use port-visit
+  # events to proxy port/transition/voyage phases, apply phase-mean SOG only to
+  # short reception gaps, and retain the primary treatment for longer gaps.
+  imo2020_sog_sensitivity:
+    enabled: true
+    transition_hours: 6
+    missing_gap_bounds_hours: [6, 72]
 
   # --- §4.1 At berth vs Anchored --------------------------------------------
   # Table 16 separates these by distance to port, because the IMO study had no
@@ -232,10 +248,10 @@ spatial:
 # =============================================================================
 # §6.3 -- territory alignment
 # =============================================================================
-# Selin et al. align to the UNFCCC party list and merge dependent territories into
-# the party responsible for them. The Global Carbon Budget does the same: its notes
-# state it lists national estimates only, and it carries no column for any Crown
-# Dependency, overseas territory or special administrative region except Hong Kong.
+# Selin et al. supplementary Table 1 (data/external/paper/erlabec02supp2.xls,
+# sheet "All") is the authoritative territory-alignment source for this
+# replication.  Its published country list has no Hong Kong row, so Hong Kong is
+# assigned to China.  This is a fixed replication rule, not a sensitivity axis.
 #
 # A territory absent from the GCB has NO BASELINE AT ALL, so a vessel whose owner or
 # manager sits there would silently drop out of the impact aggregation -- it would
@@ -245,19 +261,11 @@ spatial:
 #
 # This is DATA, not code. Adding a hull owned in Bermuda is a line here.
 territory_alignment:
-
-  # The rule is decided by the data, not by hand:
-  #
-  #   no GCB baseline            -> merge_into   (a necessity; nothing else exists)
-  #   GCB baseline, not a party  -> sensitivity  (a choice, so compute both ways)
-  #   GCB baseline and a party   -> leave alone
-  #
-  # "not a party" means absent from Selin et al.'s supplementary Table 1, which is
-  # the UNFCCC party list the paper aligns to. Both memberships were checked against
-  # the actual files; tests assert the split stays correct.
-
-  # No GCB column exists for these, so there is no alternative treatment to compute.
+  source: data/external/paper/erlabec02supp2.xls
+  sheet: All
   merge_into:
+    Hong Kong: China
+    Macao: China
     Isle of Man: United Kingdom      # Crown Dependency; RCC AMERICA's owner and operator
     Jersey: United Kingdom
     Guernsey: United Kingdom
@@ -267,23 +275,10 @@ territory_alignment:
     Curacao: Netherlands
     Sint Maarten: Netherlands
     Faroe Islands: Denmark
-
-  # These DO have their own GCB baseline but are absent from the paper's party list,
-  # so merging them is a methodological choice and both ways are computed. Hong Kong
-  # is not special here -- it is one of six territories in the same position, and
-  # treating it as a one-off was a scaling defect.
-  #
-  # Taiwan matters most: 262.3 Mt CO2 in 2024, so folding it into China moves a
-  # major emitter's entire budget. Merging it unconditionally would have discarded
-  # that silently.
-  sensitivity:
-    Hong Kong: {parent: China}
-    Macao: {parent: China}
-    Taiwan: {parent: China}
-    Bermuda: {parent: United Kingdom}
-    British Virgin Islands: {parent: United Kingdom}
-    Aruba: {parent: Netherlands}
-    Greenland: {parent: Denmark}
+    Bermuda: United Kingdom
+    British Virgin Islands: United Kingdom
+    Aruba: Netherlands
+    Greenland: Denmark
 
 validation:
   # §8.2. THETIS-MRV is EU-scope and is used ONLY to validate, never as an input.

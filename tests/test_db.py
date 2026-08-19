@@ -27,7 +27,6 @@ def db(cfg):
     database.execute(
         "00_register_views",
         power_estimates=cfg.run["power_estimates"],
-        hk_treatments=cfg.run["hk_treatments"],
         smoothing_windows=cfg.run["smoothing_windows"],
     )
     yield database
@@ -83,11 +82,10 @@ def test_vsizip_builds_a_gdal_virtual_path(cfg) -> None:
 
 
 def test_scenario_table_is_a_full_cross_join(db, cfg) -> None:
-    """Regression: three UNNESTs in one SELECT list zip instead of cross-joining."""
+    """Regression: multiple UNNESTs in one SELECT list zip instead of cross-joining."""
     rows = db.query("SELECT count(*) AS n FROM scenario").fetchone()[0]
     expected = (
         len(cfg.run["power_estimates"])
-        * len(cfg.run["hk_treatments"])
         * len(cfg.run["smoothing_windows"])
     )
     assert rows == expected
@@ -101,7 +99,6 @@ def test_sql_and_python_agree_on_the_scenario_space(db, cfg) -> None:
 def test_every_axis_value_appears(db, cfg) -> None:
     for column, key in (
         ("power_estimate", "power_estimates"),
-        ("hk_treatment", "hk_treatments"),
         ("smoothing_window", "smoothing_windows"),
     ):
         seen = {r[0] for r in db.query(f"SELECT DISTINCT {column} FROM scenario").fetchall()}

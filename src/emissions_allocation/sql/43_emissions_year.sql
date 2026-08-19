@@ -17,6 +17,7 @@ SELECT
     e.scenario_id,
     e.power_estimate,
     e.smoothing_window,
+    e.gap_treatment,
 
     count(*)                                      AS modelled_hours,
     sum(e.co2_tonnes)                             AS co2_tonnes_observed,
@@ -44,5 +45,6 @@ SELECT
 FROM emissions_hour AS e
 JOIN coverage       AS c ON c.imo = e.imo AND c.year = year(e.ts)
 GROUP BY e.imo, year(e.ts), e.scenario_id, e.power_estimate, e.smoothing_window,
+         e.gap_treatment,
          c.coverage_raw, c.coverage_active, c.inactive_hours
 ORDER BY e.imo, year, e.scenario_id;

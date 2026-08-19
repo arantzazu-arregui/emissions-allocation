@@ -14,6 +14,8 @@ import pytest
 from emissions_allocation import specs
 from emissions_allocation.config import ConfigError, MissingParameter, load_config
 from emissions_allocation.fuel import (
+    allocate_and_infill_imo_main_fuel,
+    allocate_imo_main_fuel,
     assert_build_year_in_range,
     emission_factor,
     is_high_speed,
@@ -309,6 +311,60 @@ def test_fuel_assignment_rule_has_three_conditions(cfg) -> None:
     assert set(conditions) == {
         "main_engine_is_high_speed", "inside_eca", "voyage_leg_is_eu_to_eu"
     }
+
+
+@pytest.mark.parametrize(
+    ("fuel_1", "fuel_2", "propulsion", "ship_type", "expected"),
+    [
+        ("Residual Fuel", "Distilled Fuel", "Oil Engine", "Container", "HFO"),
+        ("Residual Fuel", "NA", "Steam Turbine", "Liquefied Gas Tanker", "LNG"),
+        ("Distilled Fuel", "NA", "Oil Engine", "General Cargo", "MDO"),
+        ("Coal", "Distilled Fuel", "Oil Engine", "General Cargo", "MDO"),
+        ("Methanol", "Distilled Fuel", "Oil Engine", "Tanker", "Methanol"),
+        ("Gas boil-off", "Distilled Fuel", "Steam", "Liquefied Gas Tanker", "LNG"),
+        ("Nuclear", "NA", "Nuclear", "Icebreaker", "Nuclear"),
+        ("Coal", "NA", "Steam", "Other", "Coal"),
+        ("NA", "NA", "Oil Engine", "Container", None),
+    ],
+)
+def test_imo_table_9_main_fuel_allocation(
+    fuel_1, fuel_2, propulsion, ship_type, expected,
+) -> None:
+    """Printed p. 47 Table 9; p. 46 describes the subsequent group infill."""
+    assert allocate_imo_main_fuel(fuel_1, fuel_2, propulsion, ship_type) == expected
+
+
+def test_imo_main_fuel_fallback_infills_only_unresolved_type_size_peers() -> None:
+    import pandas as pd
+
+    records = pd.DataFrame({
+        "vessel_type": ["Container", "Container", "Container", "Tanker"],
+        "size_bin": ["large", "large", "large", "large"],
+        "fuel_type_1_first": ["Residual Fuel", "Residual Fuel", "NA", "NA"],
+        "fuel_type_2_second": ["NA", "NA", "NA", "NA"],
+        "propulsion_type": ["Oil Engine"] * 4,
+    })
+    result = allocate_and_infill_imo_main_fuel(records)
+    assert result["main_fuel"].tolist()[:3] == ["HFO", "HFO", "HFO"]
+    assert pd.isna(result["main_fuel"].iloc[3])
+    assert result["main_fuel_assignment_method"].tolist()[:3] == [
+        "table_9", "table_9", "type_size_mode",
+    ]
+    assert pd.isna(result["main_fuel_assignment_method"].iloc[3])
+
+
+def test_imo_main_fuel_fallback_rejects_a_tied_group_mode() -> None:
+    import pandas as pd
+
+    records = pd.DataFrame({
+        "vessel_type": ["Container", "Container", "Container"],
+        "size_bin": ["large"] * 3,
+        "fuel_type_1_first": ["Residual Fuel", "Distilled Fuel", "NA"],
+        "fuel_type_2_second": ["NA"] * 3,
+        "propulsion_type": ["Oil Engine"] * 3,
+    })
+    with pytest.raises(ConfigError, match="tied modal fuels"):
+        allocate_and_infill_imo_main_fuel(records)
 
 
 # ---------------------------------------------------------------------------

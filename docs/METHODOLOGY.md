@@ -108,7 +108,7 @@ Choose the study vessels by reproducible criteria rather than by hand, so a rese
 | 3 | **Distinctive ship name** | the presence filter matches on name, exactly and case-sensitively (Section 1.2); a common name pulls multiple hulls |
 | 4 | Continuous GFW presence across all study years | avoids a truncated series being read as an emissions decline |
 | 5 | Port calls in ≥3 countries | confirms international operation |
-| 6 | ≥1 EU port call | unlocks THETIS-MRV validation (Section 8.2) |
+| 6 | ≥1 EU port call | unlocks THETIS-MRV validation (Section 8.3) |
 | 7 | For vessel B: flag in an open registry **and** owner country ≠ flag country | produces the flag-versus-owner divergence under study |
 | 8 | For vessel B: deadweight below the EEXI cap for its type | above the cap the EEXI estimate is flat, so a capped hull gets a less size-specific figure (Section 2.4) |
 
@@ -125,6 +125,16 @@ Candidate discovery cannot use the ship-name filter, because names are what we a
 
 ### Outputs
 `config/pilot.yaml`: the selected IMO numbers with the criteria values that justified each selection, so the choice is auditable rather than asserted.
+
+### 0.3 GFW-observed activity screen
+
+The pipeline acquires the complete available GFW AIS-presence archive, from 2012 to approximately four days before retrieval, but calculates emissions only for the pre-registered **study period 2017-01-01 to 2024-12-31**. The rolling archive boundary is recorded through the retrieval run; it is not allowed to move the study window.
+
+For every configured IMO and calendar year, the pipeline writes `gfw_observed_activity_<imo>.parquet`. A year is labelled `observed_active` only when GFW supplies at least 24 observed presence-hours on at least 3 distinct days. Otherwise it is labelled `unobserved`. A vessel must be `observed_active` in every study year before it can enter the emissions workflow.
+
+> This is deliberately **not** an IMO ship-status classification. GFW reports AIS observations, so a zero can mean no AIS transmission, incomplete reception, a name-history mismatch, or a genuinely inactive ship. The pipeline never converts `unobserved` into `inactive`.
+
+The Fourth IMO GHG Study instead used a cumulative IHS technical-specification dataset. Its registry rule marks a ship active in year *y* when it was built by *y* and either (a) its registry status is active with status-change year <= *y*, or (b) its registry status is inactive but its status-change year is after *y*. That requires a status category and status-change date that GFW does not provide. A future fleet run supplied with such a registry may add that formal eligibility layer; it must not infer it from AIS absence.
 
 ### Status
 Vessel A is fixed. Vessel B is RCC AMERICA, IMO 9277802. It was selected from the open registry candidate pool, has a distinctive name, continuous study period coverage, 588 port calls across 64 countries, and 122 EU port calls. Its Bahamas flag, Isle of Man owner and commercial manager, and Greek ISM manager provide the intended allocation contrast.
@@ -168,7 +178,7 @@ Returns one record per vessel-hour-cell: `date` (an hourly timestamp), `lat`, `l
 
 > **Three hard assertions.** A wrong ship name returns HTTP 200 with zero records and no error. The loader must assert (a) the result is non-empty, (b) exactly one distinct IMO is present, (c) observed hours are within tolerance of elapsed hours. Silent emptiness is the dominant failure mode of this endpoint.
 
-**1.3 Post-filter on IMO.** `imo` is present in the payload but is *not* a filterable field. Filter in the loader, not in the request.
+**1.3 Validate and post-filter on IMO.** `imo` is present in the payload but is *not* a filterable field. Filter in the loader, not in the request. Every configured and returned nonblank IMO must contain exactly seven ASCII digits and pass the IMO check digit: multiply the first six digits by 7, 6, 5, 4, 3, 2 respectively; the final digit must equal the sum modulo 10. A malformed identifier raises an error; the pipeline never truncates additional digits or otherwise repairs it automatically. This differs from the Fourth IMO GHG Study's source-specific AIS-cleaning procedure, which repaired overlong raw AIS identifiers before matching to IHS. GFW's processed presence payload was audited here and already contains valid seven-digit IMO values.
 
 **1.4 Pull port visits.** Paginated, `limit=100`, advancing on `nextOffset`, confidences 3 and 4 (confidence 1–2 are not downloadable). Each event yields start and end timestamps, start/intermediate/end anchorage with a port identifier and **port-country ISO3**, duration, and an EEZ MRGID.
 
@@ -205,11 +215,14 @@ coverage = observed hours ÷ elapsed hours in period
 
 Measured at **8,782 / 8,784 = 99.98%** for 2024. Selin et al. interpolated 32% of their hours from 2015 AIS; for a large container ship on major trade lanes in 2024, gap-filling is close to unnecessary. Where gaps do occur, interpolate position by nearest-neighbour and speed linearly, following the paper, and flag interpolated hours.
 
+The adapted Fourth IMO GHG Study SOG-infill branch is assessed with the other sensitivity analyses in Section 8.2. It does not change the primary activity treatment described here.
+
 ### Outputs
 
 | Table | Grain | Key fields |
 |---|---|---|
 | `vessel_hour` | one row per vessel per hour | `imo, ts, lat, lon, hours, sog_raw, sog_smoothed, is_interpolated` |
+| `imo2020_sog_sensitivity` | one row per vessel | phase means, bounded gap threshold, short/long gap counts and hours |
 | `port_call` | one row per port visit | `imo, start_ts, end_ts, port_id, port_iso3, duration_h, confidence, eez_mrgid` |
 | `voyage_leg` | one row per consecutive port pair | `imo, depart_ts, arrive_ts, origin_iso3, dest_iso3, is_eu_eu` |
 
@@ -404,6 +417,14 @@ Both conditions are live for this vessel: it makes 39 US calls (North American E
 
 ⚠ The ECA shapefile predates the Mediterranean SOx ECA (in force May 2025). Irrelevant to a period ending in 2024; must be added if the horizon extends.
 
+### 3.1.1 Fleet fallback when primary fuel inputs are unavailable
+
+The primary vessel-hour rule above is retained whenever engine, position, and voyage-leg inputs are available. For a fleet-scale extension where those inputs cannot be obtained, use the Fourth IMO GHG Study 2020 fuel-allocation procedure (printed pp. 46-47, Table 9) as a **vessel-level fallback**. It is disabled for this pilot.
+
+First allocate the vessel's main fuel from IHS `FuelType1First` (lightest fuel), `FuelType2Second` (densest fuel), propulsion type, and vessel type: residual fuel maps to HFO except steam-turbine liquefied-gas tankers (LNG); distilled fuel maps to MDO; LNG/gas boil-off, nuclear, coal, and methanol follow their explicit Table 9 conditions. `NA` is unresolved, not evidence of a fuel type. Then, only for unresolved vessels, assign the unique modal main fuel among successfully allocated vessels in the same vessel-type x source-defined size-bin group. A tied group mode is an error and must be resolved or reported rather than chosen arbitrarily.
+
+The fallback records `main_fuel_assignment_method` (`table_9` or `type_size_mode`). It must not replace observed location/voyage information and is not used for COSCO ITALY.
+
 ### 3.2 The IMO 2020 sulphur cap
 
 The study period straddles the 0.50% global sulphur cap of 1 January 2020, which moved most of the fleet from HFO to VLSFO. **For CO₂ purposes this is immaterial**: the Fourth IMO GHG Study assigns low-sulphur HFO the same carbon content and emission factor as HFO (Table 21, `LSHFO 1.0%` → 3.114). Whether the vessel carries a scrubber therefore affects SOx, not CO₂. The fuel-switch date is recorded for transparency but does not change the result.
@@ -583,7 +604,7 @@ Assign each vessel-hour to an EEZ by point-in-polygon against EEZ v12 (285 polyg
 ### Purpose
 Establish the national baseline against which allocated emissions are measured.
 
-Use national fossil CO₂ emissions excluding land-use change as the denominator, align territories to the UNFCCC treatment, and retain an EU27 aggregate for fleet-scale comparability. The baseline is Global Carbon Budget 2025; its territorial-emissions data are in MtC and must be converted to MtCO₂ before impact calculation. Hong Kong is reported both separately and folded into China because the choice is decisive for Vessel A.
+Use national fossil CO₂ emissions excluding land-use change as the denominator, apply the territory alignment in Selin et al.'s supplementary Table 1, and retain an EU27 aggregate for fleet-scale comparability. The baseline is Global Carbon Budget 2025; its territorial-emissions data are in MtC and must be converted to MtCO₂ before impact calculation.
 
 ### Inputs
 Global Carbon Budget 2025, *National Fossil Carbon Emissions v2025*, sheet **Territorial Emissions**, header at row index 11 (0-based). Wide layout: rows are years 1850–2024, columns are 232 countries.
@@ -604,23 +625,10 @@ A free cross-check comes with it: GCB carries an `International Shipping` column
 
 ### 6.3 Country alignment
 
-Selin et al. merge overseas territories into parent countries and align to the UNFCCC party list, building an EU27 aggregate. GCB's `Regions` sheet supplies ready-made KP Annex B, OECD and EU27 groupings, which are the aggregations the paper reports.
-
-### 6.4 The Hong Kong question: reported both ways
-
-GCB carries Hong Kong separately from China:
-
-| Entity | 2024 baseline |
-|---|---|
-| Hong Kong | 9.09 MtC = **33.3 Mt CO₂** |
-| China | 3,354 MtC = **12,289 Mt CO₂** |
-
-A factor of ~370 between them. Hong Kong is not a separate UNFCCC party: it is covered by China's ratification: so the paper's own alignment rule would fold it into China, and this vessel's flag-versus-owner divergence would vanish entirely.
-
-Because the choice is decisive and not obviously correct either way, **both treatments are computed and reported as a sensitivity**, and the gap between them is presented as a methodological finding rather than buried in an assumption.
+Selin et al. merge overseas territories into parent countries and align to the UNFCCC party list, building an EU27 aggregate. The fixed mapping in `config/pilot.yaml` is sourced from their supplementary Table 1; it assigns Hong Kong to China because the published country list has no Hong Kong row. GCB's `Regions` sheet supplies ready-made KP Annex B, OECD and EU27 groupings.
 
 ### Outputs
-`baseline`: country × year × Mt CO₂ × HK-treatment.
+`baseline`: country × year × Mt CO₂.
 
 ***
 
@@ -629,7 +637,7 @@ Because the choice is decisive and not obviously correct either way, **both trea
 ### Purpose
 Express allocated emissions as absolute and relative additions to national carbon budgets, and rank them.
 
-Join each allocation option to the matching baseline and calculate absolute addition, percentage addition, ranks, and concentration shares. The SQL retains the full-fleet top-10/top-20 pathway; at two vessels, reported results instead focus on annual totals, allocation-rule contrasts, Hong Kong treatment, and scenario spread.
+Join each allocation option to the matching baseline and calculate absolute addition, percentage addition, ranks, and concentration shares. The SQL retains the full-fleet top-10/top-20 pathway; at two vessels, reported results instead focus on annual totals, allocation-rule contrasts, and scenario spread.
 
 ### 7.1 Equations
 
@@ -647,8 +655,7 @@ Ranking, percent-of-total and concentration shares are window functions over the
 Rankings and concentration shares are structurally meaningless at n = 2: the code path exists and is exercised, but the interpretable outputs at this scale are:
 
 * annual and total CO₂, under each of the three power/speed estimates;
-* the same figure attributed to Hong Kong versus China under flag and owner options;
-* ΔE% against each candidate baseline, which is where the ~370× divergence becomes visible;
+* allocation-rule contrasts against the paper-aligned national baselines;
 * the spread across scenarios as an explicit uncertainty band.
 
 ### 7.3 Cross-option comparison
@@ -656,7 +663,7 @@ Rankings and concentration shares are structurally meaningless at n = 2: the cod
 Selin et al.'s equity evidence rests on owner–operator–manager co-location and on flag-versus-owner cross-tabulation. This vessel is a clean instance of the pattern: **all three commercial roles resolve to China while the flag is Hong Kong**, so it illustrates the mechanism the paper quantifies at fleet scale.
 
 ### Outputs
-`impacts`: country × year × option × scenario × HK-treatment, with `ΔE`, `ΔE%`, `rank`; plus a scenario-spread summary.
+`impacts`: country × year × option × scenario, with `ΔE`, `ΔE%`, `rank`; plus a scenario-spread summary.
 
 ***
 
@@ -669,7 +676,11 @@ Selin et al.'s equity evidence rests on owner–operator–manager co-location a
 
 The scenario space is a SQL `CROSS JOIN` of these against the hour-level facts. Remaining uncertainties: coverage correction, displacement convention, TEU estimation, engine-type assignment: are documented qualitatively rather than propagated.
 
-### 8.2 Validation
+### 8.2 Adapted Fourth IMO GHG Study SOG-infill sensitivity
+
+A separate, explicitly non-primary branch tests the Fourth IMO GHG Study 2020 approach. It cannot be reproduced literally: that study fills missing *transmitted SOG* where an activity report remains, whereas a missing GFW presence hour has neither position nor SOG, and centroid-derived speeds do not yield a stable 90th-percentile voyage classifier. The sensitivity therefore uses port-visit events to classify port, six-hour transition, and voyage phases. It calculates the median inter-port voyage duration, bounded to 6--72 h, and replaces only shorter non-inactive reception gaps with the observed mean SOG for their phase. Longer gaps retain the primary linear-infill and active-coverage treatment; replacing an entire voyage would fabricate spatial activity. The branch is exported separately as `imo2020_port_phase` and must never be combined with primary allocation results.
+
+### 8.3 Validation
 
 | Check | Basis |
 |---|---|
@@ -688,7 +699,7 @@ THETIS-MRV is used **only** to validate, never as an input: it is EU-scope, and 
 
 | # | Item | Blocks |
 |---|---|---|
-| 2 | Selin et al. supplementary Table 1 (territory merging, Hong Kong treatment) | Section 5.4, Section 6.3 |
+| 2 | Selin et al. supplementary Table 1 (territory merging) | Section 5.4, Section 6.3 |
 | 3 | Coastline layer for distance-to-coast | Section 4.1 |
 | 4 | Sourced installed power and service speed per hull | Section 2.2 estimate C |
 | 5 | Smoothing window validated on more than one day | Section 1.6, Section 8.1 |

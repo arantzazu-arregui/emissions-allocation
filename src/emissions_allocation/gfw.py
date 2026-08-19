@@ -75,6 +75,36 @@ class PresenceAssertionError(AssertionError):
     """
 
 
+def is_valid_imo(imo: object) -> bool:
+    """Return whether a value is a syntactically valid ship IMO number.
+
+    Parameters
+    ----------
+    imo : object
+        Candidate identifier. It may be a string or a scalar returned by an API.
+
+    Returns
+    -------
+    bool
+        ``True`` only for seven ASCII digits whose final digit equals the IMO
+        checksum of the first six digits.
+
+    Notes
+    -----
+    This validates an identifier; it never repairs one. In particular, an
+    overlong value is not truncated to seven digits because that could turn a
+    source-data error into a false vessel match.
+    """
+    value = str(imo).strip()
+    if len(value) != 7 or not value.isascii() or not value.isdecimal():
+        return False
+    checksum = sum(
+        int(digit) * weight
+        for digit, weight in zip(value[:6], (7, 6, 5, 4, 3, 2))
+    )
+    return checksum % 10 == int(value[6])
+
+
 # ---------------------------------------------------------------------------
 # Response envelope handling
 # ---------------------------------------------------------------------------
@@ -192,6 +222,13 @@ def assert_presence(
     where = f" ({context})" if context else ""
     expected_imo = str(expected_imo)
 
+    if not is_valid_imo(expected_imo):
+        raise PresenceAssertionError(
+            f"expected IMO {expected_imo!r} is not seven digits with a valid IMO "
+            "checksum. Correct config/pilot.yaml; do not truncate or otherwise "
+            "repair the identifier automatically."
+        )
+
     # (a) non-empty
     if not records:
         raise PresenceAssertionError(
@@ -202,6 +239,15 @@ def assert_presence(
             "'COSCO' both return nothing.\n"
             "  Check config/vessel_specs.yaml shipnames against the vessel's rename "
             "history."
+        )
+
+    malformed = sorted({str(r.get("imo") or "").strip() for r in records} - {""})
+    malformed = [imo for imo in malformed if not is_valid_imo(imo)]
+    if malformed:
+        raise PresenceAssertionError(
+            f"presence pull for IMO {expected_imo} contains malformed IMO value(s) "
+            f"{malformed}{where}. A ship IMO must be seven digits with a valid "
+            "checksum; the loader will not normalize it."
         )
 
     # (b) exactly one distinct IMO, and it is the expected one.
@@ -445,6 +491,49 @@ class GFWClient:
             ),
         }
         key = f"presence_{'-'.join(shipnames)}_{year}"
+        body = self._request(
+            "POST", "/4wings/report",
+            params=params, json_body={"geojson": WORLD_POLYGON}, cache_key=key,
+        )
+        return extract_report_records(body)
+
+    def presence_range(
+        self,
+        shipnames: Sequence[str],
+        start_date: str,
+        end_date: str,
+        *,
+        extra_conditions: Sequence[str] = (),
+    ) -> list[dict[str, Any]]:
+        """Hourly presence for an arbitrary end-exclusive date range.
+
+        Parameters
+        ----------
+        shipnames : Sequence[str]
+            Exact vessel names accepted by the GFW presence filter.
+        start_date, end_date : str
+            ISO calendar dates delimiting the requested range. ``end_date`` is
+            exclusive.
+        extra_conditions : Sequence[str], optional
+            Additional filter clauses joined into the sole supported filter.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            Raw GFW presence records. The caller applies identity assertions.
+        """
+        params = {
+            "spatial-resolution": "HIGH",
+            "temporal-resolution": "HOURLY",
+            "group-by": "VESSEL_ID",
+            "datasets[0]": PRESENCE_DATASET,
+            "date-range": f"{start_date},{end_date}",
+            "format": "JSON",
+            "filters[0]": self.build_filter(
+                self.shipname_filter(shipnames), *extra_conditions
+            ),
+        }
+        key = f"presence_{'-'.join(shipnames)}_{start_date}_{end_date}"
         body = self._request(
             "POST", "/4wings/report",
             params=params, json_body={"geojson": WORLD_POLYGON}, cache_key=key,

@@ -30,6 +30,7 @@ SELECT
     m.scenario_id,
     m.power_estimate,
     m.smoothing_window,
+    m.gap_treatment,
     m.operating_mode,
     m.sog,
     m.me_load,

@@ -58,8 +58,9 @@ Cite Friedlingstein et al. (2025), ESSD.
 
 `data/external/paper/erlabec02supp2.xls` — the paper's own per-country results for all five
 allocation options. Used to settle the territory-alignment question: it carries **199
-countries and no Hong Kong row**, and no Taiwan or Macao, so the paper folds Hong Kong into
-China.
+countries and no Hong Kong row**. The fixed replication map therefore assigns Hong Kong to
+China. The table retains `Chinese Taipei` with `Taiwan` as its national reference, so Taiwan
+is not folded into China.
 
 ### Equasis — ownership and management
 

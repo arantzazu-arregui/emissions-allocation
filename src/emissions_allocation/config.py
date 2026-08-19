@@ -27,11 +27,13 @@ explains why it is open. Nothing silently substitutes a plausible number.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 import yaml
+
+from emissions_allocation.gfw import is_valid_imo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = PROJECT_ROOT / "config"
@@ -207,6 +209,7 @@ class Config:
     validation: dict[str, Any]
     defaults: dict[str, Any]
     factors: dict[str, Any]
+    gfw_observed_activity: dict[str, Any]
 
     # -- vessels ------------------------------------------------------------
 
@@ -245,6 +248,18 @@ class Config:
         """GFW ``date-range`` for one calendar year, end-exclusive."""
         return f"{year}-01-01", f"{year + 1}-01-01"
 
+    @property
+    def gfw_observation_start_date(self) -> date:
+        """First date in the GFW AIS-presence acquisition window."""
+        return self.gfw_observed_activity["start_date"]
+
+    @property
+    def gfw_observation_end_date(self) -> date:
+        """Exclusive end of the rolling GFW AIS-presence acquisition window."""
+        return date.today() - timedelta(
+            days=self.gfw_observed_activity["availability_lag_days"]
+        )
+
     # -- paths --------------------------------------------------------------
 
     def path(self, key: str) -> Path:
@@ -278,21 +293,14 @@ class Config:
             )
         return path
 
-    def resolve_territory(self, name: str, hk_treatment: str = "separate") -> str:
-        """Map a territory to the country whose GCB baseline carries it (§6.3).
+    def resolve_territory(self, name: str) -> str:
+        """Map a territory to the paper-aligned country carrying its GCB baseline.
 
-        Unconditional merges come from ``territory_alignment.merge_into``; the one
-        territory the GCB carries separately is resolved by the treatment. A name
-        the GCB already carries passes through unchanged.
+        ``territory_alignment.merge_into`` is transcribed from the country treatment
+        used for the Selin et al. replication.  It is deliberately a fixed mapping:
+        Hong Kong is assigned to China rather than carried as a sensitivity.
         """
         alignment = self.territory_alignment or {}
-        sensitivity = (alignment.get("sensitivity") or {}).get(name)
-        if sensitivity:
-            # "separate" keeps the territory's own baseline; any other treatment
-            # merges it into the party that covers it. The axis is still named
-            # hk_treatments for continuity, but it governs all seven territories --
-            # Taiwan's 262 Mt moves under it too, not just Hong Kong's 33 Mt.
-            return name if hk_treatment == "separate" else sensitivity["parent"]
         return (alignment.get("merge_into") or {}).get(name, name)
 
     def eexi_type(self, ship_type: str) -> str:
@@ -320,23 +328,21 @@ class Config:
     # -- scenario space -----------------------------------------------------
 
     def scenarios(self) -> list[dict[str, Any]]:
-        """The sensitivity cross join: power estimate x HK treatment x window.
+        """The sensitivity cross join: power estimate x smoothing window.
 
         §8.1. Built from config so that estimate C joins automatically the day
         someone fills in a sourced installed power and service speed.
         """
         out = []
         for power in self.run["power_estimates"]:
-            for hk in self.run["hk_treatments"]:
-                for window in self.run["smoothing_windows"]:
-                    out.append(
-                        {
-                            "scenario_id": f"{power}_hk-{hk}_w{window}",
-                            "power_estimate": power,
-                            "hk_treatment": hk,
-                            "smoothing_window": window,
-                        }
-                    )
+            for window in self.run["smoothing_windows"]:
+                out.append(
+                    {
+                        "scenario_id": f"{power}_w{window}",
+                        "power_estimate": power,
+                        "smoothing_window": window,
+                    }
+                )
         return out
 
 
@@ -362,6 +368,12 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 def _build_vessel(entry: dict[str, Any], specs_block: dict[str, Any]) -> Vessel:
     imo = str(entry["imo"])
+    if not is_valid_imo(imo):
+        raise ConfigError(
+            f"IMO {imo!r} in config/pilot.yaml must be seven digits with a valid "
+            "IMO checksum. Do not truncate or otherwise repair an identifier "
+            "automatically."
+        )
     if not specs_block:
         raise ConfigError(
             f"IMO {imo} is listed in config/pilot.yaml but has no block in "
@@ -443,7 +455,7 @@ def load_config(config_dir: Path | None = None) -> Config:
             )
 
     run = pilot.get("run") or {}
-    for key in ("smoothing_windows", "hk_treatments", "power_estimates"):
+    for key in ("smoothing_windows", "power_estimates"):
         if not run.get(key):
             raise ConfigError(f"config/pilot.yaml: run.{key} is required and non-empty")
 
@@ -453,6 +465,20 @@ def load_config(config_dir: Path | None = None) -> Config:
             f"config/pilot.yaml: smoothing_windows must be odd (the average is centred); "
             f"got {bad}"
         )
+
+    observed_activity = pilot.get("gfw_observed_activity") or {}
+    for key in ("start_date", "availability_lag_days", "min_observed_hours", "min_observed_days"):
+        if key not in observed_activity:
+            raise ConfigError(f"config/pilot.yaml: gfw_observed_activity.{key} is required")
+    if observed_activity["start_date"] > study["start_date"]:
+        raise ConfigError(
+            "config/pilot.yaml: gfw_observed_activity.start_date must not be after "
+            "study.start_date"
+        )
+    if any(observed_activity[key] <= 0 for key in (
+        "availability_lag_days", "min_observed_hours", "min_observed_days"
+    )):
+        raise ConfigError("config/pilot.yaml: GFW activity thresholds must be positive")
 
     paths = {k: PROJECT_ROOT / v for k, v in (pilot.get("paths") or {}).items()}
 
@@ -477,4 +503,5 @@ def load_config(config_dir: Path | None = None) -> Config:
         validation=pilot.get("validation") or {},
         defaults=vessel_specs.get("defaults") or {},
         factors=factors,
+        gfw_observed_activity=observed_activity,
     )

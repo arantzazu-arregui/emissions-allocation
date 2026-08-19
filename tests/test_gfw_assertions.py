@@ -20,6 +20,7 @@ from emissions_allocation.gfw import (
     PresenceAssertionError,
     assert_presence,
     extract_report_records,
+    is_valid_imo,
     year_bounds,
 )
 
@@ -118,8 +119,15 @@ def _hour_records(imo: str, count: int) -> list[dict]:
     return [{"imo": imo, "hours": 1} for _ in range(count)]
 
 
+def test_imo_validator_requires_seven_digits_and_checksum() -> None:
+    assert is_valid_imo(EXPECTED_IMO)
+    assert not is_valid_imo("95164540")
+    assert not is_valid_imo("9516455")
+    assert not is_valid_imo("95164A4")
+
+
 def test_two_distinct_imos_raise() -> None:
-    records = _hour_records(EXPECTED_IMO, 5000) + _hour_records("9999999", 4000)
+    records = _hour_records(EXPECTED_IMO, 5000) + _hour_records("9277802", 4000)
     start, end = year_bounds(2024)
     with pytest.raises(PresenceAssertionError, match="distinct IMO"):
         assert_presence(records, EXPECTED_IMO, start, end)
@@ -129,7 +137,13 @@ def test_wrong_single_imo_raises() -> None:
     """One hull, but not the one asked for."""
     start, end = year_bounds(2024)
     with pytest.raises(PresenceAssertionError, match="distinct IMO"):
-        assert_presence(_hour_records("9999999", 8782), EXPECTED_IMO, start, end)
+        assert_presence(_hour_records("9277802", 8782), EXPECTED_IMO, start, end)
+
+
+def test_malformed_imo_raises_without_normalization() -> None:
+    start, end = year_bounds(2024)
+    with pytest.raises(PresenceAssertionError, match="malformed IMO"):
+        assert_presence(_hour_records("95164540", 8782), EXPECTED_IMO, start, end)
 
 
 def test_blank_imo_is_not_counted_as_a_distinct_hull() -> None:

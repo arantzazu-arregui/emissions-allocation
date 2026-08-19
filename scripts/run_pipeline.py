@@ -47,7 +47,6 @@ def stage_check(cfg, args) -> None:
     print(f"vessels         {[v.imo for v in cfg]}")
     print(f"scenarios       {len(cfg.scenarios())} "
           f"({len(cfg.run['power_estimates'])} power x "
-          f"{len(cfg.run['hk_treatments'])} HK x "
           f"{len(cfg.run['smoothing_windows'])} windows)")
 
     with Database() as db:
@@ -58,7 +57,6 @@ def stage_check(cfg, args) -> None:
         db.execute(
             "00_register_views",
             power_estimates=cfg.run["power_estimates"],
-            hk_treatments=cfg.run["hk_treatments"],
             smoothing_windows=cfg.run["smoothing_windows"],
         )
         scenarios = db.query("SELECT count(*) AS n FROM scenario").fetchone()[0]
@@ -106,8 +104,6 @@ def stage_activity(cfg, args) -> None:
     """
     from datetime import datetime, timedelta
 
-    import pandas as pd
-
     from emissions_allocation import activity
 
     client = GFWClient.from_env(cache_dir=cfg.path("raw") / "gfw_cache")
@@ -118,6 +114,21 @@ def stage_activity(cfg, args) -> None:
     with Database() as db:
         for vessel in cfg:
             print(f"\nIMO {vessel.imo} ({vessel.label}) -- {', '.join(vessel.shipnames)}")
+
+            print("  GFW observed-activity archive ...", flush=True)
+            observed_presence = activity.load_observed_presence(client, cfg, vessel)
+            observed_activity = activity.observed_activity_by_year(
+                observed_presence,
+                vessel,
+                cfg.gfw_observation_start_date,
+                cfg.gfw_observation_end_date,
+                cfg.gfw_observed_activity["min_observed_hours"],
+                cfg.gfw_observed_activity["min_observed_days"],
+            )
+            activity.assert_study_years_observed_active(observed_activity, cfg, vessel)
+            n_observed = int((observed_activity["activity_state"] == "observed_active").sum())
+            print(f"    {n_observed} observed-active years; "
+                  f"{len(observed_activity) - n_observed} unobserved years")
 
             print("  presence ...", flush=True)
             presence = activity.load_presence(client, cfg, vessel)
@@ -151,6 +162,26 @@ def stage_activity(cfg, args) -> None:
             # out-of-service boundary.
             spine = activity.add_smoothed_speeds(spine, cfg.run["smoothing_windows"])
 
+            sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
+            imo2020_audit = None
+            if sensitivity.get("enabled", False):
+                gap_bounds = sensitivity["missing_gap_bounds_hours"]
+                spine, imo2020_audit = activity.add_imo2020_port_phase_sensitivity(
+                    spine,
+                    port_calls,
+                    cfg.run["smoothing_windows"],
+                    transition_hours=int(sensitivity["transition_hours"]),
+                    min_gap_hours=float(gap_bounds[0]),
+                    max_gap_hours=float(gap_bounds[1]),
+                )
+                row = imo2020_audit.iloc[0]
+                print("  IMO 2020 port-phase SOG sensitivity (non-primary):")
+                print(f"    threshold {row.missing_gap_threshold_hours:.1f} h; "
+                      f"phase-filled {int(row.short_gap_hours):,} h in "
+                      f"{int(row.short_gap_runs):,} short gaps; "
+                      f"retained primary treatment for {int(row.long_gap_hours):,} h "
+                      f"in {int(row.long_gap_runs):,} long gaps")
+
             print("  v^3 bias by smoothing window:")
             for window in cfg.run["smoothing_windows"]:
                 bias = activity.cubic_bias(spine.loc[~spine["is_inactive"], f"sog_w{window}"])
@@ -179,7 +210,14 @@ def stage_activity(cfg, args) -> None:
             port_calls.to_parquet(interim / f"port_call_{vessel.imo}.parquet", index=False)
             legs.to_parquet(interim / f"voyage_leg_{vessel.imo}.parquet", index=False)
             coverage.to_parquet(interim / f"coverage_{vessel.imo}.parquet", index=False)
-            print(f"  wrote 4 tables to {interim}")
+            if imo2020_audit is not None:
+                imo2020_audit.to_parquet(
+                    interim / f"imo2020_sog_sensitivity_{vessel.imo}.parquet", index=False
+                )
+            observed_activity.to_parquet(
+                interim / f"gfw_observed_activity_{vessel.imo}.parquet", index=False
+            )
+            print(f"  wrote {6 if imo2020_audit is not None else 5} tables to {interim}")
 
 
 def _check_expectations(cfg, vessel, port_calls, coverage) -> None:
@@ -248,7 +286,7 @@ def stage_fuel(cfg, args) -> None:
     """§3 -- ECA point-in-polygon, EU->EU legs, fuel assignment."""
     import pandas as pd
 
-    from emissions_allocation import activity, fuel
+    from emissions_allocation import fuel
 
     interim = cfg.path("interim")
     with Database() as db:
@@ -314,24 +352,16 @@ def _load_emissions_year(cfg):
 
 
 def stage_baselines(cfg, args) -> None:
-    """§6 -- Global Carbon Budget baselines under each Hong Kong treatment."""
+    """§6 -- Global Carbon Budget baselines."""
     from emissions_allocation import baselines
 
     frame = baselines.build_baselines(cfg)
     frame.to_parquet(cfg.path("interim") / "baseline.parquet", index=False)
 
-    print(f"{len(frame):,} country-year-treatment baselines, "
+    print(f"{len(frame):,} country-year baselines, "
           f"{frame['country'].nunique()} countries, "
           f"{frame['year'].min()}-{frame['year'].max()}")
     print("  units converted MtC -> Mt CO2 (x3.664); national columns exclude bunkers")
-
-    print("\n  §6.4 Hong Kong, 2024:")
-    for treatment in cfg.run["hk_treatments"]:
-        sub = frame[(frame["hk_treatment"] == treatment) & (frame["year"] == 2024)]
-        hk = sub[sub["country"] == "Hong Kong"]["mtco2"]
-        cn = sub[sub["country"] == "China"]["mtco2"]
-        hk_txt = f"{hk.iloc[0]:,.1f}" if len(hk) else "folded into China"
-        print(f"    {treatment:20s} Hong Kong {hk_txt:>18s} | China {cn.iloc[0]:>10,.1f} Mt CO2")
 
     check = baselines.shipping_cross_check(cfg, 2024)
     print(f"\n  §6.2 cross-check: GCB International Shipping 2024 = "
@@ -344,18 +374,14 @@ def stage_allocation(cfg, args) -> None:
     from emissions_allocation import allocation as alloc
 
     print("Allocation keys per vessel (the qualitative result at n=1):")
-    for treatment in cfg.run["hk_treatments"]:
-        print(f"\n  Hong Kong treatment: {treatment}")
-        for row in alloc.summarise_options(cfg, treatment).itertuples():
-            keys = "  ".join(
-                f"{o}={getattr(row, o)}" for o in alloc.ALLOCATION_OPTIONS
-            )
-            verdict = (
-                "DEGENERATE (all options -> one budget)" if row.is_degenerate
-                else f"{row.n_distinct_countries} distinct budgets"
-            )
-            print(f"    IMO {row.imo}: {keys}")
-            print(f"      -> {verdict}")
+    for row in alloc.summarise_options(cfg).itertuples():
+        keys = "  ".join(f"{o}={getattr(row, o)}" for o in alloc.ALLOCATION_OPTIONS)
+        verdict = (
+            "DEGENERATE (all options -> one budget)" if row.is_degenerate
+            else f"{row.n_distinct_countries} distinct budgets"
+        )
+        print(f"    IMO {row.imo}: {keys}")
+        print(f"      -> {verdict}")
 
     emissions = _load_emissions_year(cfg)
     with Database() as db:
@@ -408,11 +434,10 @@ def stage_impacts(cfg, args) -> None:
 
     headline = regional[
         (regional.year == 2024) & (regional.smoothing_window == 3)
-        & (regional.hk_treatment == "folded_into_china")
         & (regional.region.isin(["OECD", "Non-OECD", "EU27", "KP Annex B", "Non KP Annex B"]))
     ]
     if not headline.empty:
-        print("§6.3 by grouping, 2024, w=3, HK folded (Mt CO2):")
+        print("§6.3 by grouping, 2024, w=3 (Mt CO2):")
         pivot = headline.pivot_table(index="region", columns="option",
                                      values="delta_e_mt", aggfunc="sum")
         print(pivot.to_string(float_format=lambda v: f"{v:.4f}"))
@@ -427,7 +452,7 @@ def stage_emissions(cfg, args) -> None:
     """§4 -- operating mode, power demand, SFC correction and CO2."""
     import pandas as pd
 
-    from emissions_allocation import activity, emissions, fuel, specs
+    from emissions_allocation import activity, emissions, specs
     from emissions_allocation.allocation import register_eez
 
     interim = cfg.path("interim")
@@ -461,8 +486,32 @@ def stage_emissions(cfg, args) -> None:
                 db, cfg, vessel, spine, fuel_assignment, coverage, estimates
             )
 
+            sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
+            if sensitivity.get("enabled", False):
+                imo2020_hourly, imo2020_yearly = emissions.annual_emissions(
+                    db,
+                    cfg,
+                    vessel,
+                    spine,
+                    fuel_assignment,
+                    coverage,
+                    estimates,
+                    speed_prefix="sog_imo2020",
+                    gap_treatment="imo2020_port_phase",
+                )
+                imo2020_hourly.to_parquet(
+                    interim / f"emissions_hour_imo2020_port_phase_{vessel.imo}.parquet",
+                    index=False,
+                )
+                imo2020_yearly.to_parquet(
+                    interim / f"emissions_year_imo2020_port_phase_{vessel.imo}.parquet",
+                    index=False,
+                )
+                print("  wrote separate IMO 2020 port-phase sensitivity emissions; "
+                      "primary allocation inputs remain unchanged")
+
             print("\n  operating-mode split (scenario A, w=3):")
-            sample = hourly[hourly["scenario_id"] == f"A_w3"]
+            sample = hourly[hourly["scenario_id"] == "A_w3"]
             if not sample.empty:
                 for mode, n in sample["operating_mode"].value_counts().items():
                     print(f"    {mode:16s} {n:>7,} h ({n / len(sample):5.1%})")

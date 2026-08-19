@@ -1,4 +1,4 @@
-"""§6 -- Global Carbon Budget baselines, unit conversion, Hong Kong treatments.
+"""§6 -- Global Carbon Budget baselines and unit conversion.
 
 Establishes the national baseline against which allocated emissions are measured.
 
@@ -11,20 +11,14 @@ has no header row at all.
 National columns already exclude bunker fuels -- only the World total includes them --
 so the denominator is clean and adding shipping emissions does not double-count.
 
-Hong Kong is computed **both** ways (§6.4). It is not a separate UNFCCC party, and
-Selin et al.'s supplementary Table 1 confirms the paper's own treatment: 199 countries
-with no Hong Kong row, no Taiwan and no Macao, aligned to the UNFCCC party list. So
-``folded_into_china`` is the replication-faithful choice. Both are carried because the
-baselines differ by a factor of 369 and, for a Hong Kong-flagged ship with Chinese
-owners, that choice decides whether a flag-versus-owner divergence exists at all.
+Country assignment follows Selin et al.'s supplementary Table 1.  The table has no
+Hong Kong row, so the fixed territory map assigns Hong Kong-flagged emissions to China.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
-
 import pandas as pd
 
 from emissions_allocation.config import Config, ConfigError
@@ -40,9 +34,6 @@ GCB_REGIONS_SHEET = "Regions"
 # Carried for the §6.2 cross-check rather than as an input.
 SHIPPING_COLUMN = "International Shipping"
 WORLD_COLUMN = "World"
-
-HONG_KONG = "Hong Kong"
-CHINA = "China"
 
 
 def gcb_path(cfg: Config) -> Path:
@@ -72,45 +63,16 @@ def load_gcb(cfg: Config) -> pd.DataFrame:
     return long.reset_index(drop=True)
 
 
-def apply_hk_treatment(baselines: pd.DataFrame, treatment: str) -> pd.DataFrame:
-    """Keep Hong Kong separate, or fold it into China (§6.4).
-
-    Folding sums the two baselines rather than discarding Hong Kong's, so the
-    denominator stays a true territorial total under either treatment.
-    """
-    if treatment == "separate":
-        return baselines.assign(hk_treatment=treatment)
-
-    if treatment != "folded_into_china":
-        raise ConfigError(
-            f"unknown Hong Kong treatment {treatment!r}. "
-            "Known: 'separate', 'folded_into_china'."
-        )
-
-    folded = baselines.copy()
-    folded["country"] = folded["country"].replace({HONG_KONG: CHINA})
-    folded = (
-        folded.groupby(["country", "year"], as_index=False)[["mtc", "mtco2"]].sum()
-    )
-    return folded.assign(hk_treatment=treatment)
-
-
 def build_baselines(cfg: Config) -> pd.DataFrame:
-    """Baselines under every configured Hong Kong treatment.
+    """Return GCB baselines for the study period.
 
-    Returns:
-        ``country, year, mtc, mtco2, hk_treatment``.
+    Territory alignment happens when allocation keys are resolved, not by mutating
+    the published GCB country totals.
     """
-    raw = load_gcb(cfg)
-    return pd.concat(
-        [apply_hk_treatment(raw, t) for t in cfg.run["hk_treatments"]],
-        ignore_index=True,
-    )
+    return load_gcb(cfg)
 
 
-def national_baseline(
-    baselines: pd.DataFrame, country: str, year: int, treatment: str
-) -> float:
+def national_baseline(baselines: pd.DataFrame, country: str, year: int) -> float:
     """``B_c`` in Mt CO2 for one country and year.
 
     Raises:
@@ -121,12 +83,10 @@ def national_baseline(
     match = baselines[
         (baselines["country"] == country)
         & (baselines["year"] == year)
-        & (baselines["hk_treatment"] == treatment)
     ]
     if match.empty:
         raise ConfigError(
-            f"no Global Carbon Budget baseline for {country!r} in {year} under the "
-            f"{treatment!r} treatment.\n"
+            f"no Global Carbon Budget baseline for {country!r} in {year}.\n"
             "  The GCB keys baselines by country NAME. Check the `gcb_name` on this "
             "vessel's allocation key in config/vessel_specs.yaml against the "
             "workbook's column headings."
