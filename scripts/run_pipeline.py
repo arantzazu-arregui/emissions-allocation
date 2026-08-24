@@ -375,7 +375,7 @@ def stage_allocation(cfg, args) -> None:
     """§5 -- allocate ship-year CO2 to countries under each rule."""
     import pandas as pd
 
-    from emissions_allocation import allocation as alloc
+    from emissions_allocation import activity, allocation as alloc
 
     print("Allocation keys per vessel (the qualitative result at n=1):")
     for row in alloc.summarise_options(cfg).itertuples():
@@ -411,10 +411,22 @@ def stage_allocation(cfg, args) -> None:
         ignore_index=True,
     )
     if "label_end_ts" not in legs.columns:
-        raise SystemExit(
-            "voyage_leg parquet files predate voyage-based allocation. "
-            "Rerun: run_pipeline.py --stage activity"
+        # This schema addition changes only the deterministic port-call-derived
+        # voyage labels. Rebuild it locally instead of requiring the expensive
+        # activity stage (and its GFW archive requests) to run again.
+        print("voyage_leg parquet files predate label_end_ts; rebuilding from port calls")
+        port_calls = pd.concat(
+            [pd.read_parquet(interim / f"port_call_{vessel.imo}.parquet") for vessel in cfg],
+            ignore_index=True,
         )
+        with Database(spatial=False) as db:
+            db.register_frame("port_call", port_calls)
+            db.table_from("voyage_leg", "12_voyage_leg", eu27=list(activity.EU27))
+            legs = db.query("SELECT * FROM voyage_leg").df()
+        for vessel in cfg:
+            legs.loc[legs["imo"] == vessel.imo].to_parquet(
+                interim / f"voyage_leg_{vessel.imo}.parquet", index=False
+            )
     coverage = pd.concat(
         [pd.read_parquet(interim / f"coverage_{vessel.imo}.parquet") for vessel in cfg],
         ignore_index=True,
@@ -464,7 +476,9 @@ def stage_impacts(cfg, args) -> None:
     allocation = pd.read_parquet(interim / "allocation.parquet")
     baseline = baselines.build_baselines(cfg)
 
-    with Database() as db:
+    # Impact calculations use tabular joins only; avoid initializing the spatial
+    # extension for this downstream, fully offline stage.
+    with Database(spatial=False) as db:
         result = impacts.compute_impacts(db, allocation, baseline)
     result.to_parquet(interim / "impacts.parquet", index=False)
 

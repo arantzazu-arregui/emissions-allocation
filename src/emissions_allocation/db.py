@@ -67,19 +67,24 @@ class Database:
         if self._spatial_ready:
             return
         try:
-            self.con.execute("INSTALL spatial;")
-        except duckdb.Error as exc:  # already installed, or offline with it cached
-            log.debug("INSTALL spatial: %s", exc)
-        try:
             self.con.execute("LOAD spatial;")
         except duckdb.Error as exc:
-            raise RuntimeError(
-                "DuckDB's spatial extension could not be loaded, so no spatial join "
-                "can run.\n"
-                "  It is downloaded once on first use and needs network access for "
-                "that.\n"
-                f"  Underlying error: {exc}"
-            ) from exc
+            # ``INSTALL`` may contact the extension repository even when the
+            # extension is already cached. Try the local cache first so resumed
+            # pipeline stages remain offline and do not wait on an unnecessary
+            # network request.
+            log.debug("LOAD spatial before install: %s", exc)
+            try:
+                self.con.execute("INSTALL spatial;")
+                self.con.execute("LOAD spatial;")
+            except duckdb.Error as install_exc:
+                raise RuntimeError(
+                    "DuckDB's spatial extension could not be loaded, so no spatial join "
+                    "can run.\n"
+                    "  It is downloaded once on first use and needs network access for "
+                    "that.\n"
+                    f"  Underlying error: {install_exc}"
+                ) from install_exc
         self._spatial_ready = True
 
     # -- execution ----------------------------------------------------------
