@@ -156,6 +156,16 @@ independent cross-check on the derived series and as the fallback method that sc
 fleet (7 requests per region-year instead of a per-vessel track). Bin edges 10–15 and 15–25 kn
 straddle typical design speeds, so a bin-edge sensitivity test is required.
 
+**AIS draught is unavailable.** The Fourth IMO GHG Study's AIS-reported and
+voyage-specific draught workflow requires raw, timestamped static AIS messages. The
+selected GFW presence, port-visit, and vessel-identity datasets do not provide a
+draught field, so no draught resampling, infilling, reporting-quality flag, or
+voyage-median calculation is possible. The project retains a fixed registry design
+draught only for its Admiralty/displacement power-estimation sensitivity; it does not
+estimate cargo or use draught as a vessel-hour emissions-model input. A future
+cargo-intensity extension would require raw AIS draught observations and an
+authoritative design-draught source.
+
 **Coverage correction.** Observed hours < elapsed hours wherever reception fails. Correct as
 `hours_corrected = hours_observed ÷ coverage`, with coverage from the GFW Insights/coverage
 metric (available from 2017-01-01 — this is why the study period starts in 2017). Selin et al.
@@ -170,12 +180,14 @@ interpolated 32% of hours in 2015; this is a shared limitation, not a new one.
 | **Fields needed** | event id, `start`, `end`, `position` (lat/lon), port/anchorage identifier, port country, `regions` block (EEZ, RFMO, FAO) |
 | **Derivation** | Sort events by `start`; each consecutive pair (port *n* → port *n+1*) is one voyage leg with an origin, a destination, a departure time and an arrival time |
 | **Granularity** | One record per port call; a busy container ship generates roughly 40–120 calls/year |
-| **Status** | **Not yet implemented.** No events code exists in the repo |
-| **To verify** | Exact dataset name string and the port-name/port-country field names — the public documentation page renders as a SPA and did not expose the response schema (§6.1, V4) |
+| **Status** | Implemented from GFW `PORT_VISIT` events; consecutive calls form voyage legs and supply the primary international-emissions attribution. |
+| **Verified fields** | `port_visit.startAnchorage.flag` supplies the start-port ISO3; `endAnchorage.flag` supplies the departure ISO3 for the next leg. `topDestination`, event timestamps, confidence, and `atDock` are retained for QA. |
 
-Voyage legs also supply the international/domestic classification more directly than the paper's
-rule: a leg between ports in two different countries is unambiguously international. The paper's
-">95% of signals in one country's EEZ" test is retained as the cross-check.
+Voyage legs supply the primary international-emissions attribution: a leg between ports in two
+different countries is international, and the destination call inherits that label. This follows
+Fourth IMO GHG Study Option 2, but uses GFW's inferred port visits rather than reproducing its
+raw-AIS stop detection. The paper's ">95% of signals in one EEZ" test is retained only as a
+vessel-level cross-check.
 
 ### F. Spatial context — Marine Regions (VLIZ)
 

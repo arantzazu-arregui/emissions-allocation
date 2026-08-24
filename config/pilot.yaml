@@ -61,20 +61,22 @@ vessels:
     # nothing else.
     shipnames: ["RCC AMERICA", "HOEGH AMERICA"]
 
-    # ESTIMATE A ONLY. Estimate B's Admiralty coefficient is calibrated on 17
+    # Estimates A and D. Estimate B's Admiralty coefficient is calibrated on 17
     # container ships (Charchalis 2014) and there is no published equivalent for a
     # vehicle carrier -- C_adm, the block coefficient and the Froude range are all
     # hull-form specific. specs.estimate_b_admiralty raises for this type rather
     # than borrowing container numbers, so it is excluded here rather than left to
-    # fail at run time.
+    # fail at run time. Estimate D instead uses EPA's recommended pooled
+    # container/RoRo/auto-carrier/reefer MCR regression and A's EEXI reference
+    # speed; its label records this hybrid pairing.
     #
     # Read the resulting figure with the §8.2 caveat in view: against EMSA-verified
     # emissions, estimate A UNDERSTATES vessel A by 36% (0.64x) while estimate B
-    # matches at 0.98x. Vessel B therefore runs on the estimate we have external
-    # evidence against, with no second estimate to bracket it. Closing that needs
-    # estimate C -- this hull's actual MCR and service speed from class-society
-    # records, which for one named 2003 ship is findable.
-    power_estimates: [A]
+    # matches at 0.98x. D supplies an independent MCR estimate, but shares A's
+    # speed and therefore does not bracket speed uncertainty. Estimate C -- this
+    # hull's actual MCR and service speed from class-society records -- remains the
+    # preferred validation target.
+    power_estimates: [A, D]
 
 run:
   # --- Sensitivity axes (docs/METHODOLOGY.md §8.1) ---------------------------
@@ -86,11 +88,11 @@ run:
   # OPEN ITEM 5: the window is validated on one day of data only.
   smoothing_windows: [1, 3, 5, 7]
 
-  # §2.2. Which power/speed estimates to carry. Estimates A and B are derived at
-  # runtime from hull dimensions. Estimate C is a SOURCED specification and is
+  # §2.2. Which power/speed estimates to carry. Estimates A, B, and D are derived
+  # at runtime from hull dimensions. Estimate C is a SOURCED specification and is
   # null in vessel_specs.yaml (OPEN ITEM 4) -- listing it here without supplying
   # the values raises MissingParameter rather than substituting a default.
-  power_estimates: [A, B]
+  power_estimates: [A, B, D]
 
   # --- §1.2 assertion (c): presence-pull integrity ---------------------------
   #

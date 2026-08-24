@@ -87,10 +87,10 @@ def test_vessel_b_is_selected(cfg) -> None:
 
 
 def test_vessel_b_narrows_its_power_estimates(cfg) -> None:
-    """No Admiralty calibration exists for a vehicle carrier, so 'B' is excluded in
-    config rather than left to raise mid-run."""
-    assert cfg.vessel("9277802").resolve_power_estimates(cfg.run["power_estimates"]) == ["A"]
-    assert cfg.vessel(VESSEL_A).resolve_power_estimates(cfg.run["power_estimates"]) == ["A", "B"]
+    """No Admiralty calibration exists for a vehicle carrier, so B is excluded,
+    while EPA D is explicitly paired with its EEXI reference speed."""
+    assert cfg.vessel("9277802").resolve_power_estimates(cfg.run["power_estimates"]) == ["A", "D"]
+    assert cfg.vessel(VESSEL_A).resolve_power_estimates(cfg.run["power_estimates"]) == ["A", "B", "D"]
 
 
 def test_vessel_b_has_no_invented_hull_dimensions(cfg) -> None:
@@ -196,7 +196,7 @@ def test_estimate_c_is_absent_and_raises_on_use(cfg) -> None:
 def test_estimate_c_is_not_in_the_default_scenario_set(cfg) -> None:
     """Listing C without supplying it would raise; it is left out until sourced."""
     assert "C" not in cfg.run["power_estimates"]
-    assert cfg.run["power_estimates"] == ["A", "B"]
+    assert cfg.run["power_estimates"] == ["A", "B", "D"]
 
 
 def test_missing_parameter_message_refuses_to_default(cfg) -> None:

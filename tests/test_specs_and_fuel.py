@@ -1,10 +1,9 @@
 """§2 specifications and §3 fuel assignment.
 
-The §2 tests pin the three estimates to the figures in docs/METHODOLOGY.md §2.2,
-including the one that is *supposed* to fail: estimate A returns 28.92 kn, above the
-24.5 kn maximum of the modern container fleet. That failure is a reported result and
-is asserted as such -- a future change that quietly brought it inside the envelope
-would be hiding the finding, not fixing it.
+The §2 tests pin the implemented estimates to the figures in docs/METHODOLOGY.md §2.2.
+Estimate A returns 25.55 kn once MEPC.333(76)'s containership caps are applied. That
+remains above the 24.5 kn observed-fleet maximum and is asserted as a documented
+limitation rather than hidden by an uncapped regression.
 """
 
 from __future__ import annotations
@@ -85,6 +84,8 @@ def test_both_containership_caps_bind_for_vessel_a(vessel, cfg) -> None:
     assert estimate.variants["capacity_power"] == 95_000
     assert estimate.design_speed_kn == pytest.approx(25.55, abs=0.01)
     assert estimate.mcr_kw == pytest.approx(67_912, rel=0.001)
+    assert estimate.load_at_reference == pytest.approx(0.75)
+    assert estimate.speed_exponent == pytest.approx(3.0)
 
 
 def test_uncapped_values_reproduce_the_documented_error(vessel, cfg) -> None:
@@ -122,7 +123,7 @@ def test_unmapped_ship_type_raises(cfg) -> None:
 
 
 def test_estimate_a_fails_the_fleet_envelope(vessel, cfg) -> None:
-    """28.92 kn exceeds the 24.5 kn maximum across 215 designs built since 2015.
+    """25.55 kn exceeds the 24.5 kn maximum across 215 designs built since 2015.
 
     This is a REPORTED RESULT. If this test ever starts failing because the estimate
     moved inside the envelope, the finding has been hidden, not fixed.
@@ -236,9 +237,40 @@ def test_estimate_c_message_says_where_to_put_the_values(vessel, cfg) -> None:
         specs.estimate_c_sourced(vessel, cfg.defaults)
 
 
+# ---------------------------------------------------------------------------
+# 2.2 -- estimate D
+# ---------------------------------------------------------------------------
+
+
+def test_estimate_d_epa_regression_matches_the_worked_value(vessel, cfg) -> None:
+    """EPA's container regression gives 124,539 hp = 92,868 kW for vessel A."""
+    estimate = specs.estimate_d_epa_dwt(vessel, cfg.defaults)
+    assert estimate.mcr_kw == pytest.approx(92_868, abs=1)
+    assert estimate.variants["epa_main_engine_hp"] == pytest.approx(124_539, abs=1)
+    assert estimate.variants["epa_extrapolated"] is True
+    assert estimate.design_speed_kn == pytest.approx(22.62, abs=0.02)
+    assert estimate.load_at_reference == pytest.approx(0.83)
+
+
+def test_estimate_d_uses_epa_pooled_vehicle_power_and_eexi_speed(cfg) -> None:
+    """RCC AMERICA uses EPA's recommended auto/RoRo pooled MCR regression.
+
+    At 21,182 DWT, ``(0.719 * DWT + 2,581) hp`` is 13,281 kW. EPA does not
+    estimate speed, so D deliberately shares estimate A's 19.96 kn EEXI speed.
+    """
+    vehicle = cfg.vessel("9277802")
+    estimate = specs.estimate_d_epa_dwt(vehicle, cfg.defaults, cfg)
+    assert estimate.mcr_kw == pytest.approx(13_281, abs=1)
+    assert estimate.design_speed_kn == pytest.approx(19.96, abs=0.02)
+    assert estimate.load_at_reference == pytest.approx(0.75)
+    assert estimate.variants["speed_pairing"] == "eexi"
+    assert estimate.variants["epa_extrapolated"] is False
+    assert set(specs.build_estimates(vehicle, cfg)) == {"A", "D"}
+
+
 def test_build_estimates_returns_only_configured_ones(vessel, cfg) -> None:
     built = specs.build_estimates(vessel, cfg)
-    assert set(built) == {"A", "B"}
+    assert set(built) == {"A", "B", "D"}
 
 
 def test_requesting_an_unknown_estimate_raises(vessel, cfg) -> None:
@@ -481,6 +513,28 @@ def test_table17_size_basis_follows_the_table_not_an_assumption(vessel, cfg) -> 
     assert specs.size_for_table17(_hull(vessel, "vehicle", 21182, 57718), cfg)[1] == 21182
     ship_type, size, unit = specs.size_for_table17(_hull(vessel, "cruise", 12000, 120000), cfg)
     assert (unit, size) == ("gt", 120000)
+
+
+def test_table17_gas_carriers_use_configured_cargo_volume(vessel, cfg) -> None:
+    """Table 17's gas-carrier bands are cubic metres, never deadweight."""
+    import dataclasses
+
+    from emissions_allocation.config import Parameter
+
+    gas = dataclasses.replace(
+        _hull(vessel, "liquefied_gas_tanker", 70_000, 50_000),
+        specs={
+            **_hull(vessel, "liquefied_gas_tanker", 70_000, 50_000).specs,
+            "cbm_capacity": Parameter("cbm_capacity", 90_000),
+        },
+    )
+    assert specs.size_for_table17(gas, cfg) == ("liquefied_gas_tanker", 90_000, "cbm")
+
+
+def test_table17_gas_carriers_reject_missing_cargo_volume(vessel, cfg) -> None:
+    gas = _hull(vessel, "liquefied_gas_tanker", 70_000, 50_000)
+    with pytest.raises(MissingParameter, match="cbm_capacity"):
+        specs.size_for_table17(gas, cfg)
 
 
 def test_estimate_b_raises_for_uncalibrated_hull_forms(vessel, cfg) -> None:

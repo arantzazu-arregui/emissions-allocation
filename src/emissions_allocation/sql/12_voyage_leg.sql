@@ -35,6 +35,10 @@ SELECT
     imo,
     prev_end_ts                       AS depart_ts,
     start_ts                          AS arrive_ts,
+    -- The destination call belongs to the voyage that preceded it (Fourth IMO
+    -- GHG Study 2020, Option 2).  This makes leg labels contiguous: A's end to
+    -- B's end is A -> B, and B -> C begins when B's call ends.
+    end_ts                            AS label_end_ts,
     prev_port_id                      AS origin_port_id,
     prev_port_iso3                    AS origin_iso3,
     port_id                           AS dest_port_id,

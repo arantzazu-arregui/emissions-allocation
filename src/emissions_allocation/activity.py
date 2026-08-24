@@ -380,33 +380,79 @@ def smooth_speed(sog: pd.Series, window: int) -> pd.Series:
     return sog.rolling(window=window, center=True, min_periods=1).mean()
 
 
-def add_smoothed_speeds(frame: pd.DataFrame, windows: Iterable[int]) -> pd.DataFrame:
+def _port_visit_mask(
+    frame: pd.DataFrame, port_calls: pd.DataFrame | None
+) -> pd.Series:
+    """Identify spine hours inside a GFW port-visit interval.
+
+    Parameters
+    ----------
+    frame : pandas.DataFrame
+        Hourly vessel spine with a ``ts`` timestamp column.
+    port_calls : pandas.DataFrame, optional
+        GFW port visits with ``start_ts`` and ``end_ts``. When omitted, an existing
+        ``in_port_visit`` column is used; otherwise every hour is treated as
+        underway.
+
+    Returns
+    -------
+    pandas.Series
+        Boolean mask aligned to ``frame``.
+
+    Notes
+    -----
+    Port-event times are UTC-aware whereas the hourly spine is deliberately naive,
+    so event timestamps are normalised before comparison.
+    """
+    if port_calls is None:
+        return frame.get("in_port_visit", pd.Series(False, index=frame.index)).astype(bool)
+    required = {"start_ts", "end_ts"}
+    missing = required - set(port_calls.columns)
+    if missing:
+        raise ValueError(f"port_calls is missing required columns: {sorted(missing)}")
+
+    in_port = pd.Series(False, index=frame.index)
+    for call in port_calls[["start_ts", "end_ts"]].itertuples(index=False):
+        start, end = (pd.Timestamp(value) for value in call)
+        if start.tz is not None:
+            start = start.tz_localize(None)
+        if end.tz is not None:
+            end = end.tz_localize(None)
+        in_port |= (frame["ts"] >= start) & (frame["ts"] <= end)
+    return in_port
+
+
+def add_smoothed_speeds(
+    frame: pd.DataFrame,
+    windows: Iterable[int],
+    port_calls: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Add one ``sog_w{n}`` column per configured smoothing window.
 
-    Smoothing runs **within contiguous in-service segments**, never across an
-    out-of-service boundary. A centred average that straddles a 282-day lay-up
-    would blend the speed of the last voyage before it into the first voyage after,
-    which is not a smoothing artefact to be tolerated but a fabricated value: those
-    hours are not neighbours in any physical sense.
+    Smoothing runs **within contiguous underway segments**, never across an
+    out-of-service or port-visit boundary. A centred average that straddles a
+    282-day lay-up or a berth/departure boundary would fabricate a speed for hours
+    that are not physical neighbours. Port-visit speeds are left unsmoothed so the
+    Table 16 berth/anchor thresholds retain their observed values.
 
-    Requires ``is_inactive``, so :func:`classify_gaps` must run first. Falls back to
-    treating the whole series as one segment when the column is absent.
+    Requires ``is_inactive``, so :func:`classify_gaps` must run first. ``port_calls``
+    is the parsed GFW event table used to delimit voyage segments. If either input is
+    absent, the relevant boundary type is simply not available.
     """
     out = frame.copy()
-    if "is_inactive" not in out.columns:
-        for window in windows:
-            out[f"sog_w{window}"] = smooth_speed(out["sog_raw"], window)
-        return out
-
-    # Each maximal run of in-service hours is smoothed independently.
-    segment = (out["is_inactive"] != out["is_inactive"].shift()).cumsum()
+    inactive = out.get("is_inactive", pd.Series(False, index=out.index)).astype(bool)
+    in_port = _port_visit_mask(out, port_calls)
+    out["in_port_visit"] = in_port
+    underway = ~(inactive | in_port)
+    segment = underway.ne(underway.shift()).cumsum()
     for window in windows:
         column = f"sog_w{window}"
-        out[column] = (
-            out.groupby(segment)["sog_raw"]
+        out[column] = out["sog_raw"]
+        out.loc[underway, column] = (
+            out.loc[underway].groupby(segment.loc[underway])["sog_raw"]
             .transform(lambda s: smooth_speed(s, window))
         )
-        out.loc[out["is_inactive"], column] = np.nan
+        out.loc[inactive, column] = np.nan
     return out
 
 
@@ -523,16 +569,23 @@ def add_imo2020_port_phase_sensitivity(
         phases = out.loc[in_gap, "imo2020_phase"]
         out.loc[in_gap, "sog_imo2020_raw"] = phases.map(phase_means).to_numpy()
 
-    # Maintain the no-cross-lay-up rule used by the primary smoothing branch.
-    segment = (out["is_inactive"] != out["is_inactive"].shift()).cumsum()
+    # Maintain the no-cross-lay-up or port-visit rule used by the primary branch.
+    in_port = _port_visit_mask(out, port_calls)
+    out["in_port_visit"] = in_port
+    inactive = out["is_inactive"].astype(bool)
+    underway = ~(inactive | in_port)
+    segment = underway.ne(underway.shift()).cumsum()
     for window in windows:
         if window % 2 == 0:
             raise ValueError(f"smoothing window must be odd (centred); got {window}")
         column = f"sog_imo2020_w{window}"
-        out[column] = out.groupby(segment)["sog_imo2020_raw"].transform(
+        out[column] = out["sog_imo2020_raw"]
+        out.loc[underway, column] = out.loc[underway].groupby(
+            segment.loc[underway]
+        )["sog_imo2020_raw"].transform(
             lambda speed: smooth_speed(speed, window)
         )
-        out.loc[out["is_inactive"], column] = np.nan
+        out.loc[inactive, column] = np.nan
 
     audit = pd.DataFrame([{
         "imo": out["imo"].iloc[0] if len(out) else None,

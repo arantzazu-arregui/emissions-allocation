@@ -89,7 +89,7 @@ cached tables, so it opens instantly.
 | **`hours_disputed`** | Vessel-hours in a joint-regime or overlapping EEZ claim, flagged so the territory assignment is visible. |
 | **`dominant_eez_share`** | `dominant_eez_hours / hours_in_any_eez`. A value above 95% classifies the vessel as domestic. |
 | **`is_domestic`** | `True` when `dominant_eez_share` exceeds the 95% domestic threshold. |
-| **`is_international`** | `True` when the vessel is not domestic. Only international vessels enter the allocation analysis. |
+| **`is_international`** | `True` when the vessel is not domestic in the EEZ diagnostic. Allocation instead uses voyage-level port-country labels, so only emissions from international voyages enter the analysis. |
 | **`delta_e_mt_min`** | Smallest national carbon-budget increment, in MtCO₂, across all configured scenarios for a country, year, and allocation option. |
 | **`delta_e_mt_max`** | Largest national carbon-budget increment, in MtCO₂, across the same scenario set. |
 | **`spread_ratio`** | `delta_e_mt_max / delta_e_mt_min`, showing the multiplicative spread across scenarios. |
@@ -154,7 +154,8 @@ pytest
 Nothing here is defaulted. Each surfaces as a named error or a PENDING marker.
 
 - **Estimate C** (sourced installed power and service speed) has no free source and raises.
-  Vessel B runs on estimate A alone, which external validation shows understates.
+  Vessel B uses EEXI A plus EPA-power/EEXI-speed D; both share the EEXI speed, so
+  only installed-power uncertainty is bracketed.
 - **Estimate B has no calibration for non-container hulls.** `C_adm` comes from 17 container
   ships; it raises for any other hull form rather than extrapolating.
 - **THETIS-MRV** covers vessel A for 2018–2019 only — the hull stopped calling at EU ports

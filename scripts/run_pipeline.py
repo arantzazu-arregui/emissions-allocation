@@ -160,7 +160,9 @@ def stage_activity(cfg, args) -> None:
 
             # Smoothing runs only now, so a centred window never straddles an
             # out-of-service boundary.
-            spine = activity.add_smoothed_speeds(spine, cfg.run["smoothing_windows"])
+            spine = activity.add_smoothed_speeds(
+                spine, cfg.run["smoothing_windows"], port_calls
+            )
 
             sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
             imo2020_audit = None
@@ -371,6 +373,8 @@ def stage_baselines(cfg, args) -> None:
 
 def stage_allocation(cfg, args) -> None:
     """§5 -- allocate ship-year CO2 to countries under each rule."""
+    import pandas as pd
+
     from emissions_allocation import allocation as alloc
 
     print("Allocation keys per vessel (the qualitative result at n=1):")
@@ -383,13 +387,41 @@ def stage_allocation(cfg, args) -> None:
         print(f"    IMO {row.imo}: {keys}")
         print(f"      -> {verdict}")
 
-    emissions = _load_emissions_year(cfg)
-    with Database() as db:
-        # §5.4 -- the international/domestic test. Trivially satisfied by both
-        # pilot hulls, but the fleet-scale version needs it and a template that
-        # omits the filter would quietly include domestic craft when scaled.
-        import pandas as pd
+    interim = cfg.path("interim")
+    required = [
+        interim / f"emissions_hour_{vessel.imo}.parquet" for vessel in cfg
+    ] + [
+        interim / f"voyage_leg_{vessel.imo}.parquet" for vessel in cfg
+    ] + [
+        interim / f"coverage_{vessel.imo}.parquet" for vessel in cfg
+    ]
+    missing = [path.name for path in required if not path.exists()]
+    if missing:
+        raise SystemExit(
+            "§5 voyage-based allocation requires completed activity and emissions "
+            f"outputs; missing: {', '.join(missing)}"
+        )
 
+    hourly = pd.concat(
+        [pd.read_parquet(interim / f"emissions_hour_{vessel.imo}.parquet") for vessel in cfg],
+        ignore_index=True,
+    )
+    legs = pd.concat(
+        [pd.read_parquet(interim / f"voyage_leg_{vessel.imo}.parquet") for vessel in cfg],
+        ignore_index=True,
+    )
+    if "label_end_ts" not in legs.columns:
+        raise SystemExit(
+            "voyage_leg parquet files predate voyage-based allocation. "
+            "Rerun: run_pipeline.py --stage activity"
+        )
+    coverage = pd.concat(
+        [pd.read_parquet(interim / f"coverage_{vessel.imo}.parquet") for vessel in cfg],
+        ignore_index=True,
+    )
+    with Database() as db:
+        # §5.4 -- EEZ domestic/international diagnostic. The allocation itself
+        # uses the port-to-port labels calculated below.
         alloc.register_eez(db, cfg)
         spines = [pd.read_parquet(cfg.path("interim") / f"vessel_hour_{v.imo}.parquet")
                   for v in cfg]
@@ -404,8 +436,21 @@ def stage_allocation(cfg, args) -> None:
                   f"  ({row.hours_disputed:,} h in disputed/joint-regime waters)")
         domestic.to_csv(cfg.path("out") / "domestic_test.csv", index=False)
 
-        result = alloc.allocate(db, cfg, emissions)
-    result.to_parquet(cfg.path("interim") / "allocation.parquet", index=False)
+        international = alloc.international_emissions_year(db, hourly, legs, coverage, cfg)
+        result = alloc.allocate(db, cfg, international)
+    international.to_parquet(interim / "international_emissions_year.parquet", index=False)
+    result.to_parquet(interim / "allocation.parquet", index=False)
+    diagnostics = international.groupby("imo", as_index=False).agg(
+        modelled_hours=("modelled_hours", "first"),
+        labelled_hours=("labelled_hours", "first"),
+        unallocated_hours=("unallocated_hours", "first"),
+        international_hour_share=("international_hour_share", "first"),
+    )
+    diagnostics.to_csv(cfg.path("out") / "international_voyage_diagnostics.csv", index=False)
+    print("\n§5.4 voyage-based international attribution:")
+    for row in diagnostics.itertuples():
+        print(f"  IMO {row.imo}: {row.international_hour_share:.1%} international "
+              f"of labelled hours; {row.unallocated_hours:,} boundary/unknown hours")
     print(f"\n{len(result):,} allocation rows written")
 
 
@@ -469,6 +514,32 @@ def stage_emissions(cfg, args) -> None:
             )
             coverage = activity.coverage_by_year(spine)
 
+            # Allow §4 to resume from a spine written before the optional §1.7
+            # sensitivity was introduced.  Rebuilding this deterministic branch
+            # here avoids an opaque KeyError after the expensive distance step.
+            sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
+            if sensitivity.get("enabled", False):
+                required_speed_columns = {
+                    f"sog_imo2020_w{window}" for window in cfg.run["smoothing_windows"]
+                }
+                missing_speed_columns = required_speed_columns - set(spine.columns)
+                if missing_speed_columns:
+                    gap_bounds = sensitivity["missing_gap_bounds_hours"]
+                    print("  rebuilding missing IMO 2020 port-phase SOG sensitivity "
+                          "columns from the saved activity inputs ...", flush=True)
+                    spine, imo2020_audit = activity.add_imo2020_port_phase_sensitivity(
+                        spine,
+                        port_calls,
+                        cfg.run["smoothing_windows"],
+                        transition_hours=int(sensitivity["transition_hours"]),
+                        min_gap_hours=float(gap_bounds[0]),
+                        max_gap_hours=float(gap_bounds[1]),
+                    )
+                    spine.to_parquet(interim / f"vessel_hour_{vessel.imo}.parquet", index=False)
+                    imo2020_audit.to_parquet(
+                        interim / f"imo2020_sog_sensitivity_{vessel.imo}.parquet", index=False
+                    )
+
             db.register_frame("vessel_hour", spine)
             db.register_frame("port_call", port_calls)
 
@@ -486,7 +557,6 @@ def stage_emissions(cfg, args) -> None:
                 db, cfg, vessel, spine, fuel_assignment, coverage, estimates
             )
 
-            sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
             if sensitivity.get("enabled", False):
                 imo2020_hourly, imo2020_yearly = emissions.annual_emissions(
                     db,

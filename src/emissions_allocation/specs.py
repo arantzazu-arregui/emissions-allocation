@@ -1,4 +1,4 @@
-"""§2 -- ship specifications: TEU inversion and the three power/speed estimates.
+"""§2 -- ship specifications: TEU inversion and power/speed estimates.
 
 The central data constraint of this replication. Selin et al. used IHS World Register
 of Shipping, a paid commercial register, for installed power and design speed. The
@@ -6,15 +6,18 @@ IMO Fourth GHG Study's own fallback regressions (equations 3 and 4) publish only
 symbolic coefficients and are mutually circular -- speed requires power, power
 requires speed. **No free source supplies these two parameters.**
 
-Three independent estimates are therefore carried in parallel, with no primary, and
+Independent estimates are therefore carried in parallel, with no primary, and
 the spread between them is a reported output rather than an error to be resolved:
 
-A. IMO EEXI curve fit (MEPC.333(76)). Returns 28.92 kn for vessel A, which is
-   **outside the observed modern container fleet envelope** -- the estimate fails its
-   own validation check and that failure is a result, not a bug to be patched.
+A. IMO EEXI curve fit (MEPC.333(76)). Returns 25.55 kn for vessel A after the
+   resolution's containership caps are applied. It remains just above the observed
+   modern container fleet envelope and is flagged as such.
 B. Admiralty coefficient calibrated on Charchalis (2014), Froude-number speed. Both
    displacement conventions are carried because they bracket a real ~18% difference.
 C. Sourced specification per hull -- OPEN ITEM 4, absent, raises on use.
+D. EPA DWT-to-horsepower regression, paired with a separately documented reference
+   speed. The pairing is Froude speed for containers and EEXI speed for the vehicle
+   carrier; EPA itself estimates power only.
 
 Every returned estimate carries its own provenance, so a notebook table can mark
 each number as estimated without the caller tracking which is which.
@@ -27,7 +30,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from emissions_allocation.config import Config, MissingParameter, Vessel
+from emissions_allocation.config import Config, ConfigError, MissingParameter, Vessel
 
 NL = chr(10)
 
@@ -49,8 +52,11 @@ class PowerEstimate:
     label: str
     design_speed_kn: float
     mcr_kw: float
+    load_at_reference: float
+    reference_condition: str
     source: str
     method: str
+    speed_exponent: float = 3.0
     estimated: bool = True
     within_fleet_envelope: bool | None = None
     variants: dict[str, Any] = field(default_factory=dict)
@@ -60,8 +66,71 @@ class PowerEstimate:
         warn = "" if self.within_fleet_envelope is not False else "  <- OUTSIDE FLEET ENVELOPE"
         return (
             f"{self.label}: {self.design_speed_kn:.2f} kn, "
-            f"{self.mcr_kw:,.0f} kW{mark}{warn}"
+            f"{self.mcr_kw:,.0f} kW, reference load {self.load_at_reference:.2f}"
+            f"{mark}{warn}"
         )
+
+
+def _reference_parameters(
+    defaults: dict[str, Any], estimate: str, ship_type: str
+) -> dict[str, Any]:
+    """Return sourced reference-load parameters for one estimate and hull type.
+
+    Parameters
+    ----------
+    defaults : dict[str, Any]
+        Shared vessel-specification configuration.
+    estimate : str
+        Estimate label (``A`` through ``D``).
+    ship_type : str
+        Canonical project ship type.
+
+    Returns
+    -------
+    dict[str, Any]
+        Reference-load fraction, reference condition, and speed exponent.
+
+    Raises
+    ------
+    MissingParameter
+        If the estimate/type pair has no explicit, sourced reference condition.
+
+    Notes
+    -----
+    The speed at which a source quotes a power value is not generally the speed at
+    100% MCR. Keeping this mapping in configuration prevents a universal ``1.0``
+    anchor from silently being applied to unlike estimates.
+    """
+    table = (defaults.get("power_reference") or {}).get(estimate) or {}
+    row = (
+        table.get("by_ship_type", {}).get(ship_type)
+        or table.get(ship_type)
+        or table.get("default")
+    )
+    if not row:
+        raise MissingParameter(
+            f"estimate {estimate!r} has no power-reference parameters for ship type "
+            f"{ship_type!r}. Add defaults.power_reference.{estimate} in "
+            "config/vessel_specs.yaml; no shared reference-load default is used."
+        )
+    load = row.get("load_at_reference")
+    if not isinstance(load, (int, float)) or not 0 < load <= 1:
+        raise MissingParameter(
+            f"estimate {estimate!r} has invalid load_at_reference {load!r} for "
+            f"ship type {ship_type!r}; it must be in (0, 1]."
+        )
+    if not row.get("reference_condition"):
+        raise MissingParameter(
+            f"estimate {estimate!r} has no reference_condition for ship type "
+            f"{ship_type!r}."
+        )
+    exponent = row.get("speed_exponent", 3.0)
+    if not isinstance(exponent, (int, float)) or exponent <= 0:
+        raise MissingParameter(
+            f"estimate {estimate!r} has invalid speed_exponent {exponent!r} for "
+            f"ship type {ship_type!r}; it must be positive."
+        )
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +222,14 @@ def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any], cfg: Config | None
 
     speed = speed_row["A"] * _capacity(vessel, speed_row) ** speed_row["C"]
     mcr = power_row["D"] * _capacity(vessel, power_row) ** power_row["F"]
+    reference = _reference_parameters(defaults, "A", vessel.require_spec("ship_type"))
 
     return PowerEstimate(
         label="A (EEXI curve fit)",
         design_speed_kn=speed,
         mcr_kw=mcr,
+        load_at_reference=reference["load_at_reference"],
+        reference_condition=reference["reference_condition"],
         source=f"{cfg.eexi['source']['document']} (via {cfg.eexi['source']['via']})",
         method=(
             f"V = {speed_row['A']} * {speed_row.get('capacity','dwt')}"
@@ -174,7 +246,10 @@ def estimate_a_eexi(vessel: Vessel, defaults: dict[str, Any], cfg: Config | None
             "eexi_type": key,
             "capacity_speed": _capacity(vessel, speed_row),
             "capacity_power": _capacity(vessel, power_row),
+            "reference_source": reference["source"],
+            "reference_method": reference["method"],
         },
+        speed_exponent=reference.get("speed_exponent", 3.0),
     )
 
 
@@ -248,11 +323,14 @@ def estimate_b_admiralty(vessel, defaults):
     )
     displacement = (displacement_geometric + displacement_ratio) / 2
     mcr = admiralty_power_kw(displacement, speed, c_adm)
+    reference = _reference_parameters(defaults, "B", ship_type)
 
     return PowerEstimate(
         label="B (Admiralty, calibrated)",
         design_speed_kn=speed,
         mcr_kw=mcr,
+        load_at_reference=reference["load_at_reference"],
+        reference_condition=reference["reference_condition"],
         source=(calibration["c_adm"]["source"] + "; Froude range from "
                 + calibration["froude_number"]["source"]),
         method=("V = Fn*sqrt(g*L_BP)/0.5144 over Fn " + str(fn_min) + "-" + str(fn_max)
@@ -270,7 +348,10 @@ def estimate_b_admiralty(vessel, defaults):
             "c_adm": c_adm,
             "c_adm_range": (calibration["c_adm"]["min"], calibration["c_adm"]["max"]),
             "calibrated_on": ship_type,
+            "reference_source": reference["source"],
+            "reference_method": reference["method"],
         },
+        speed_exponent=reference.get("speed_exponent", 3.0),
     )
 
 
@@ -300,16 +381,163 @@ def estimate_c_sourced(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimat
     )
     mcr = vessel.require_spec("power_C_mcr_kw")
     parameter = vessel.spec("power_C_mcr_kw")
+    reference = vessel.require_spec(
+        "power_C_reference",
+        because=(
+            "Estimate C needs the load fraction and condition at which its sourced "
+            "speed was reported."
+        ),
+    )
 
     return PowerEstimate(
         label="C (sourced)",
         design_speed_kn=speed,
         mcr_kw=mcr,
+        load_at_reference=reference["load_at_reference"],
+        reference_condition=reference["reference_condition"],
         source=parameter.source or "sourced",
         method=parameter.method or "sourced specification",
         within_fleet_envelope=check_fleet_envelope(
             speed, defaults, vessel.require_spec("ship_type")
         ),
+        speed_exponent=reference.get("speed_exponent", 3.0),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2.2 -- estimate D, EPA DWT-to-main-engine-power regression
+# ---------------------------------------------------------------------------
+
+
+def epa_main_engine_power_kw(
+    dwt_t: float,
+    slope_hp_per_dwt: float,
+    intercept_hp: float,
+    hp_to_kw: float,
+) -> float:
+    """Estimate rated main-engine power from deadweight.
+
+    Parameters
+    ----------
+    dwt_t : float
+        Vessel deadweight in tonnes.
+    slope_hp_per_dwt : float
+        Regression slope in hp per tonne DWT.
+    intercept_hp : float
+        Regression intercept in hp.
+    hp_to_kw : float
+        Conversion from mechanical horsepower to kW.
+
+    Returns
+    -------
+    float
+        Estimated rated main-engine power in kW.
+
+    Notes
+    -----
+    This is the EPA (2000) DWT regression. It estimates main-engine power
+    directly; Table 17 auxiliary operating loads are not an input.
+    """
+    if dwt_t <= 0:
+        raise ValueError(f"DWT must be positive, got {dwt_t}")
+    return (slope_hp_per_dwt * dwt_t + intercept_hp) * hp_to_kw
+
+
+def estimate_d_epa_dwt(
+    vessel: Vessel, defaults: dict[str, Any], cfg: Config | None = None
+) -> PowerEstimate:
+    """EPA DWT-to-power estimate paired with a configured reference speed.
+
+    Parameters
+    ----------
+    vessel : Vessel
+        Vessel whose DWT and ship type determine the power regression.
+    defaults : dict[str, Any]
+        Shared EPA regression and, where applicable, Admiralty Froude-speed
+        configuration.
+    cfg : Config, optional
+        Required when the EPA row pairs its MCR with the EEXI reference speed.
+
+    Returns
+    -------
+    PowerEstimate
+        Hybrid scenario: EPA-estimated installed MCR and separately estimated
+        reference speed.
+
+    Notes
+    -----
+    The two components retain separate provenance. The EPA regression does not
+    estimate design speed. Each ship type must name either a calibrated Froude
+    pairing or the EEXI pairing; no container assumption is borrowed for a vehicle
+    carrier.
+    """
+    ship_type = vessel.require_spec("ship_type")
+    epa = defaults["epa_dwt_power"]
+    row = (epa.get("by_ship_type") or {}).get(ship_type)
+    if not row:
+        raise MissingParameter(
+            f"no EPA DWT-to-power regression is configured for ship type {ship_type!r}. "
+            "Add a sourced row under defaults.epa_dwt_power.by_ship_type or exclude 'D'."
+        )
+    speed_pairing = row.get("speed_pairing")
+    if speed_pairing == "froude":
+        speed_calibration = (defaults["admiralty"].get("by_ship_type") or {}).get(ship_type)
+        if not speed_calibration:
+            raise MissingParameter(
+                f"estimate D needs a hull-form Froude-speed range for {ship_type!r}; none is configured."
+            )
+        fn = speed_calibration["froude_number"]
+        speed_min = froude_speed_kn(fn["min"], vessel.require_spec("lbp_m"))
+        speed_max = froude_speed_kn(fn["max"], vessel.require_spec("lbp_m"))
+        speed = (speed_min + speed_max) / 2
+        speed_source = "Froude range from " + fn["source"]
+        speed_method = "V = Fn*sqrt(g*L_BP)/0.5144"
+        speed_variants: dict[str, Any] = {"speed_kn_range": (speed_min, speed_max)}
+    elif speed_pairing == "eexi":
+        if cfg is None:
+            raise MissingParameter(
+                "estimate D needs the Config to resolve its EEXI reference-speed pairing"
+            )
+        eexi_speed = estimate_a_eexi(vessel, defaults, cfg)
+        speed = eexi_speed.design_speed_kn
+        speed_source = "EEXI reference speed from " + eexi_speed.source
+        speed_method = "V = EEXI reference-speed curve"
+        speed_variants = {"speed_from_estimate": "A", "speed_kn": speed}
+    else:
+        raise MissingParameter(
+            f"estimate D needs a recognised speed_pairing for {ship_type!r}; got {speed_pairing!r}."
+        )
+    dwt = vessel.require_spec("dwt")
+    hp = row["slope_hp_per_dwt"] * dwt + row["intercept_hp"]
+    mcr = epa_main_engine_power_kw(
+        dwt, row["slope_hp_per_dwt"], row["intercept_hp"], epa["hp_to_kw"]
+    )
+    lo, hi = row["typical_dwt_range_t"]
+    reference = _reference_parameters(defaults, "D", ship_type)
+
+    return PowerEstimate(
+        label="D (EPA DWT power + " + speed_pairing.upper() + " speed)",
+        design_speed_kn=speed,
+        mcr_kw=mcr,
+        load_at_reference=reference["load_at_reference"],
+        reference_condition=reference["reference_condition"],
+        source=epa["source"] + "; " + speed_source,
+        method=(
+            f"MCR = ({row['slope_hp_per_dwt']}*DWT + {row['intercept_hp']}) hp "
+            f"* {epa['hp_to_kw']} kW/hp; {speed_method}"
+        ),
+        within_fleet_envelope=check_fleet_envelope(speed, defaults, ship_type),
+        variants={
+            "epa_main_engine_hp": hp,
+            "speed_pairing": speed_pairing,
+            **speed_variants,
+            "epa_r_squared": row["r_squared"],
+            "epa_typical_dwt_range_t": (lo, hi),
+            "epa_extrapolated": not (lo <= dwt <= hi),
+            "reference_source": reference["source"],
+            "reference_method": reference["method"],
+        },
+        speed_exponent=reference.get("speed_exponent", 3.0),
     )
 
 
@@ -341,6 +569,7 @@ _BUILDERS = {
     "A": estimate_a_eexi,
     "B": estimate_b_admiralty,
     "C": estimate_c_sourced,
+    "D": estimate_d_epa_dwt,
 }
 
 
@@ -358,8 +587,8 @@ def build_estimates(vessel: Vessel, cfg: Config) -> dict[str, PowerEstimate]:
                 f"unknown power estimate {name!r} in config/pilot.yaml "
                 f"run.power_estimates. Known: {sorted(_BUILDERS)}"
             )
-        out[name] = (builder(vessel, cfg.defaults, cfg) if name == "A"
-                     else builder(vessel, cfg.defaults))
+        out[name] = (builder(vessel, cfg.defaults, cfg) if name in {"A", "D"}
+                      else builder(vessel, cfg.defaults))
     return out
 
 
@@ -383,7 +612,8 @@ def size_for_table17(vessel, cfg):
     and service craft by gross tonnage. Passing deadweight to a GT-indexed row lands
     in the wrong band and returns a plausible wrong number.
 
-    TEU is the only basis that must be derived (2.1); the rest are observed.
+    TEU is the only basis that must be derived (2.1); the rest are observed. Gas
+    carriers are indexed by cargo volume (``cbm_capacity``), not deadweight.
     """
     ship_type = vessel.require_spec("ship_type")
     types = cfg.factors["auxiliary_boiler_power"]["ship_types"] or {}
@@ -397,6 +627,18 @@ def size_for_table17(vessel, cfg):
     unit = table["size_unit"]
     if unit == "TEU":
         return ship_type, resolve_teu(vessel, cfg), unit
-    if unit == "gt":
-        return ship_type, vessel.require_spec("gt"), unit
-    return ship_type, vessel.require_spec("dwt"), unit
+    field_by_unit = {"gt": "gt", "dwt": "dwt", "cbm": "cbm_capacity"}
+    field = field_by_unit.get(unit)
+    if field is None:
+        raise MissingParameter(
+            f"IMO Table 17 size unit {unit!r} for ship type {ship_type!r} has no "
+            "configured vessel-specification basis."
+        )
+    try:
+        size = vessel.require_spec(field)
+    except ConfigError as exc:
+        raise MissingParameter(
+            f"IMO Table 17 uses {unit!r} for ship type {ship_type!r}, but vessel "
+            f"{vessel.imo} has no configured {field!r}."
+        ) from exc
+    return ship_type, size, unit

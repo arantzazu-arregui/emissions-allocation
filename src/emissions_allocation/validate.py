@@ -12,8 +12,8 @@
  Port-call agreement   Berth periods in the track must coincide with port-visit
                        events.
  Identity integrity    Exactly one distinct IMO in every presence pull.
- Fleet envelope        Design speed within 6.0-24.5 kn. Estimate A fails at
-                       28.92 kn.
+Fleet envelope        Design speed within 6.0-24.5 kn. Estimate A is 25.55 kn
+                       after the MEPC.333(76) cap, still just above the envelope.
 ===================== ========================================================
 
 THETIS-MRV is used **only** to validate, never as an input -- it is EU-scope, and

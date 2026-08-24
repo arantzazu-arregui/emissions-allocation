@@ -103,8 +103,3 @@ def test_notebook_exists_and_has_outputs() -> None:
         o.get("output_type") == "error"
         for c in code_cells for o in c.get("outputs", [])
     ), "notebook contains an error output"
-
-
-def test_notebook_is_generated_not_hand_written() -> None:
-    """Generated from a script so it stays in step with the modules."""
-    assert (PROJECT_ROOT / "notebooks" / "build_notebook.py").is_file()

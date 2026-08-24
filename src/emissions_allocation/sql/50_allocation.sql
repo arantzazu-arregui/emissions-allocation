@@ -1,8 +1,8 @@
 -- §5.3 -- allocate ship-year CO2 to countries under each rule.
 --
---   E_c,option = SUM over ships of ( E_ship * 1[ key_option(ship) = c ] )
+--   E_c,option = SUM over ships of ( E_ship,international * 1[ key_option(ship) = c ] )
 --
--- At n = 2 this reduces to assigning each vessel's total to one country per option,
+-- At n = 2 this reduces to assigning each vessel's international total to one country per option,
 -- but it is written as the general fleet aggregation so the fleet case needs no
 -- change -- scaling is a longer `vessel_key` table, not an edit to this file.
 --

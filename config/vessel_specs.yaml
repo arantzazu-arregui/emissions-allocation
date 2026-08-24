@@ -43,62 +43,43 @@ defaults:
     estimated: true
 
   # --- §2.2 estimate A -- IMO EEXI curve fit ---------------------------------
-  # V = A * DWT^B ;  MCR = C * DWT^D
-  # MEPC.333(76) writes P_ME for INSTALLED power; this project calls it MCR
-  # throughout, because the Fourth GHG Study uses P_ME for instantaneous demand.
-  eexi_curve_fit:
-    source: "IMO Resolution MEPC.333(76) (2021), 2021 Guidelines on the method of calculation of the attained EEXI -- parameters to calculate Vref,avg"
-    method: "V = A * capacity^C, where `capacity` is the ship type's capacity parameter"
-    estimated: true
+  # The active, complete MEPC.333(76) parameter tables are in
+  # config/eexi_parameters.yaml. config.py reads that file directly; do not add a
+  # second copy here because divergent coefficients, caps, and key names are a
+  # silent source of wrong power estimates.
 
-    # !! THE CAPACITY PARAMETER IS NOT ALWAYS PLAIN DEADWEIGHT. !!
-    #
-    # Containerships CAP it at 80,000 DWT. Missing that cap was a real error here:
-    # vessel A at 156,610 DWT returned 28.89 kn uncapped against 25.55 kn capped,
-    # and because main-engine load goes as (SOG/V)^3, the wrong speed understated
-    # load by a factor of 1.45. docs/METHODOLOGY.md §2.2 quotes the uncapped 28.92
-    # kn figure, so the specification carries the same error.
-    #
-    # The cap is the resolution's own acknowledgement that the relation breaks down
-    # for large container ships -- which is precisely the failure §2.2 describes
-    # while nonetheless applying the uncapped form.
-    #
-    # `capacity` names the field; `capacity_cap` applies where the source states one.
-    speed:
-      bulk_carrier:              {A: 10.6585, capacity: dwt, C: 0.02706}
-      gas_carrier:               {A:  7.4462, capacity: dwt, C: 0.07604}
-      tanker:                    {A:  8.1358, capacity: dwt, C: 0.05383}
-      containership:             {A:  3.2395, capacity: dwt, C: 0.18294, capacity_cap: 80000}
-      general_cargo:             {A:  2.4538, capacity: dwt, C: 0.18832}
-      refrigerated_bulk:         {A:  1.0600, capacity: dwt, C: 0.31518}
-      combination_carrier:       {A:  8.1391, capacity: dwt, C: 0.05378}
-      lng_carrier:               {A: 11.0536, capacity: dwt, C: 0.05030}
-      vehicle:                   {A: 16.6773, capacity: dwt, C: 0.01802}
-      ro_ro:                     {A:  8.0793, capacity: dwt, C: 0.09123}
-      ferry_ropax:               {A:  4.1140, capacity: dwt, C: 0.19863}
-      cruise:                    {A:  5.1240, capacity: gt,  C: 0.12714}   # non-conventional propulsion
-
-    # Installed power. STILL NEEDED -- the P_ME table is a separate table in the
-    # same resolution and has not been transcribed. The containership row below is
-    # what was in use before the speed table arrived; it is retained because it
-    # reproduces METHODOLOGY's 113,004 kW, but its provenance is weaker than the
-    # speed rows above and it may carry a capacity cap of its own.
-    power:
-      containership: {C: 0.504, D: 1.030, capacity: dwt}
-      # No other ship type transcribed. specs.estimate_a_eexi raises for these
-      # rather than borrowing the containership constants.
-
-    # §2.2.7 of the same resolution, recorded as evidence for the caveat below.
-    # A cubic capacity correction applies to vehicle carriers with DWT/GT < 0.35:
-    #     f_cVEHICLE = ((DWT/GT) / 0.35)^-0.8
-    # It exists because deadweight understates vehicle carriers, which is the same
-    # reason a deadweight-based power law is a poor fit for them.
-    #   COSCO ITALY  DWT/GT = 1.013  -> does not apply
-    #   RCC AMERICA  DWT/GT = 0.367  -> does not apply (just above the threshold)
-    vehicle_capacity_correction:
-      threshold_dwt_gt: 0.35
-      exponent: -0.8
-      applies_when: "DWT/GT < 0.35"
+  # --- §4.2 reference-load and speed-power parameters ------------------------
+  # Every estimate carries its own reference load. V_ref/service speed is normally
+  # reached below MCR, so a shared 100%-MCR anchor is physically wrong.
+  power_reference:
+    A:
+      default:
+        load_at_reference: 0.75
+        reference_condition: "calm-water summer-load-draught EEXI V_ref at 75% original MCR"
+        speed_exponent: 3.0
+        source: "IMO Resolution MEPC.333(76), paragraph 2.2.3.5"
+        method: "V_ref is evaluated at 75% original MCR (or 83% limited MCR); original MCR_avg is used here"
+    B:
+      container:
+        load_at_reference: 1.0
+        reference_condition: "Charchalis Table 1 total propulsion power at its paired service speed; installed-MCR fraction unresolved"
+        speed_exponent: 3.0
+        source: "Charchalis (2014), Table 1"
+        method: "provisional reference-power formulation; do not interpret its calibrated power as an independently verified MCR"
+    D:
+      by_ship_type:
+        container:
+          load_at_reference: 0.83
+          reference_condition: "EPA service-speed convention (83% rated power)"
+          speed_exponent: 3.0
+          source: "USEPA ShipPowerModel"
+          method: "P_ref at service speed is 83% of installed propulsive power"
+        vehicle:
+          load_at_reference: 0.75
+          reference_condition: "calm-water summer-load-draught EEXI V_ref paired with EPA rated power"
+          speed_exponent: 3.0
+          source: "IMO Resolution MEPC.333(76), paragraph 2.2.3.5; EPA DWT power regression"
+          method: "The D scenario uses Estimate A's EEXI V_ref, so it inherits the EEXI 75%-MCR reference fraction"
 
   # --- §2.2 estimate B -- Admiralty coefficient, calibrated ------------------
   # V   = Fn * sqrt(g * L_BP) / 0.5144        [knots]
@@ -173,6 +154,41 @@ defaults:
       ferry_pax_only: null
       cruise: null
       other_liquids_tanker: null
+
+  # --- §2.2 estimate D -- EPA main-engine-power regression ------------------
+  # The source relates DWT directly to rated main-engine horsepower. It is NOT
+  # inferred by reversing Table 17 auxiliary operating loads. For a runnable
+  # (V_ref, MCR) scenario, D needs a separately configured speed pairing. The
+  # container row uses the container-hull Froude range; the vehicle row uses the
+  # EEXI vehicle-carrier reference speed because no vehicle Froude calibration is
+  # held here.
+  epa_dwt_power:
+    hp_to_kw: 0.745699872
+    source: "EPA (2000), Analysis of Commercial Marine Vessels Emissions and Fuel Consumption Data, EPA420-R-00-002, Tables 4-3 and 4-5"
+    method: "linear regression of rated main-engine horsepower on DWT; horsepower converted to kW"
+    estimated: true
+    by_ship_type:
+      container:
+        slope_hp_per_dwt: 0.80
+        intercept_hp: -749.4
+        sample_size: 489
+        r_squared: 0.59
+        typical_dwt_range_t: [20000, 70000]
+        speed_pairing: froude
+        speed_pairing_note: "Froude-number range from defaults.admiralty.by_ship_type.container; MCR is not reused from the Admiralty relation"
+      vehicle:
+        # EPA Table 4-5's recommended pooled relation for container/RoRo/auto
+        # carrier/reefer ships. RCC AMERICA is an Equasis "Vehicles Carrier".
+        # EPA's auto-carrier-only Table 4-3 fit has R2=0.176; the pooled fit is
+        # materially stronger (R2=0.71, N=917), so it is used as the primary D
+        # sensitivity rather than the type-specific but unstable relation.
+        slope_hp_per_dwt: 0.719
+        intercept_hp: 2581
+        sample_size: 917
+        r_squared: 0.71
+        typical_dwt_range_t: [5000, 70000]
+        speed_pairing: eexi
+        speed_pairing_note: "MEPC.333(76) vehicle-carrier reference speed; EPA estimates MCR only"
 
   # --- §8.2 fleet-envelope validation check ----------------------------------
   # Also hull-form specific: 6.0-24.5 kn is the CONTAINER fleet's range and says
@@ -251,6 +267,7 @@ vessels:
       C:
         mcr_kw: {value: null, source: null, method: null, estimated: true}
         design_speed_kn: {value: null, source: null, method: null, estimated: true}
+        reference: {value: null, source: null, method: null, estimated: true}
 
     # --- §5.1 allocation keys ------------------------------------------------
     # Equasis supplies an IMO company identification number per role, which gives
@@ -349,6 +366,7 @@ vessels:
       C:
         mcr_kw: {value: null, source: null, method: null, estimated: true}
         design_speed_kn: {value: null, source: null, method: null, estimated: true}
+        reference: {value: null, source: null, method: null, estimated: true}
 
     # --- §5.1 allocation keys ------------------------------------------------
     # THREE distinct national budgets, which is the whole point of vessel B.
@@ -398,5 +416,6 @@ vessels:
   # --- Further vessels -----------------------------------------------------
   # Add the block here once §0.2 and the Equasis lookup are done. Required
   # fields mirror vessel A: dwt, beam_m, lbp_m, ship_type, engine_type, and the
-  # four allocation_keys. If B is a bulk carrier or tanker, defaults.eexi_curve_fit
-  # needs its constants transcribed from MEPC.333(76) Table 1 first.
+  # four allocation_keys. MEPC.333(76) constants live in
+  # config/eexi_parameters.yaml; add an explicit power_reference row before a new
+  # power/speed pairing is modelled.

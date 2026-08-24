@@ -20,6 +20,7 @@ from emissions_allocation.activity import (
     EU27,
     _parse_port_visits,
     add_imo2020_port_phase_sensitivity,
+    add_smoothed_speeds,
     build_spine,
     coverage_by_year,
     cubic_bias,
@@ -182,6 +183,24 @@ def test_smoothing_damps_the_observed_oscillation() -> None:
 def test_smoothing_preserves_the_mean_in_the_interior() -> None:
     sog = pd.Series(np.linspace(10, 20, 101))
     assert smooth_speed(sog, 5).mean() == pytest.approx(sog.mean(), rel=0.01)
+
+
+def test_smoothing_does_not_cross_a_port_visit_boundary() -> None:
+    """Berth hours must not smear into departure/cruise speed or mode assignment."""
+    spine = pd.DataFrame({
+        "ts": pd.date_range("2024-01-01", periods=8, freq="h"),
+        "sog_raw": [0.0, 0.0, 0.0, 0.0, 20.0, 20.0, 20.0, 20.0],
+        "is_inactive": [False] * 8,
+    })
+    ports = pd.DataFrame({
+        "start_ts": [pd.Timestamp("2024-01-01 00:00", tz="UTC")],
+        "end_ts": [pd.Timestamp("2024-01-01 03:00", tz="UTC")],
+    })
+    out = add_smoothed_speeds(spine, [7], ports)
+
+    assert out.loc[:3, "sog_w7"].eq(0.0).all()
+    assert out.loc[4:, "sog_w7"].eq(20.0).all()
+    assert out.loc[:3, "in_port_visit"].all()
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ Two vessels demonstrate the *machinery* of national allocation, plus one qualita
 Two consequences follow directly:
 
 * **The bunker-fuel allocation option is not computable at this scale.** It rests on national marine-bunker *sales* statistics; allocating one ship's emissions to a bunkering country would require knowing where it took fuel, which no public dataset records. Four of the paper's five options are reproduced here; the fifth is a fleet-scale construct by nature.
-* **The international-versus-domestic classification is trivially satisfied.** Selin et al. classify a ship as domestic if >95% of its signals fall inside one country's EEZ. Vessel A calls at ports in seventeen countries. The test is implemented anyway, because the fleet-scale version needs it.
+* **The EEZ international-versus-domestic diagnostic is trivially satisfied.** Selin et al. classify a ship as domestic if >95% of its signals fall inside one country's EEZ. Vessel A calls at ports in seventeen countries. The diagnostic remains useful at fleet scale, but the allocation numerator is now voyage-based international CO2 (Section 5.4).
 
 **Why two vessels rather than one.** Vessel A alone produces a degenerate allocation result. Its flag, owner, ISM manager and commercial manager all resolve to China once Hong Kong is folded into China under the UNFCCC party list: so all four computable options return the same country and the comparison that motivates the paper produces nothing. Keeping Hong Kong separate yields a single flag-versus-owner divergence, but that rests entirely on a contestable methodological choice (Section 6.4).
 
@@ -199,7 +199,10 @@ mean(v³) = 2 654     vs     (mean v)³ = 1 588        →  1.67× overestimate
 after a 3-hour centred moving average                →  1.19× overestimate
 ```
 
-Apply a centred moving average of width *w*:
+Apply a centred moving average of width *w* **within each contiguous underway
+segment**. GFW port-visit intervals and out-of-service gaps are hard segment
+boundaries: port hours are not averaged with a departure or arrival, so they cannot
+acquire a spurious speed that changes their Table 16 operating mode.
 
 ```
 SOḠ_i = (1/w) · Σ SOG_{i+k},   k = −(w−1)/2 … +(w−1)/2
@@ -231,6 +234,18 @@ The adapted Fourth IMO GHG Study SOG-infill branch is assessed with the other se
 ### Limitations
 Positions are cell centroids, not true fixes. Speed is derived, not transmitted: GFW does not expose AIS speed over ground directly. AIS navigational status is unavailable, which matters in Section 4. Presence hours are observed-only.
 
+**AIS draught and cargo estimation are not implemented.** The Fourth IMO GHG Study
+derives AIS-reported and voyage-specific draught from raw, timestamped static AIS
+messages. This workflow instead uses GFW's processed hourly presence product, whose
+vessel-hour records do not expose draught. Neither the selected GFW presence,
+port-visit, nor vessel-identity inputs provide the measurements needed to forward/
+back-fill draught or calculate voyage medians. The fixed registry design draught is
+retained only as an input to the alternative Admiralty/displacement installed-power
+estimate (Section 2.2); it is not an hourly operational input. Consequently, cargo
+estimation and draught-dependent resistance are outside this implementation's scope.
+Revisit this decision only if a source of timestamped raw AIS static/voyage draught
+messages and an authoritative design-draught field are added.
+
 ***
 
 # 2. Acquire ship registry data and complete ship specifications
@@ -251,8 +266,8 @@ This section covers workflow steps 3 and 4. Equasis replaces paid WRS/IHS data f
 | Year built | Equasis | 2014 | observed |
 | LOA, beam, draught | public vessel registers | 365.90 m, 51.20 m, 16.0 m | observed |
 | TEU capacity | derived, Section 2.1 | ≈ 13,200 | **estimated** |
-| Design speed `V` | derived, Section 2.2 | three estimates | **estimated** |
-| Installed power `MCR` | derived, Section 2.2 | three estimates | **estimated** |
+| Design speed `V` | derived, Section 2.2 | A, B and D implemented; C pending | **estimated** |
+| Installed power `MCR` | derived, Section 2.2 | A, B and D implemented; C pending | **estimated** |
 | Engine type | assigned, Section 2.3 | slow-speed diesel | assigned |
 | Owner / manager / operator country | Equasis | see Section 5 | observed |
 
@@ -278,7 +293,7 @@ T   = 0.624 · DWT^0.27  →   15.8 m   (actual 16.0 m)
 
 ⚠ Their TEU-based LBP relation, `LBP = 3.16·TEU^0.34`, returns 79.5 m at 13,200 TEU and is evidently mis-transcribed. Not used.
 
-### 2.2 Design speed and installed power: three estimates
+### 2.2 Design speed and installed power: four estimation approaches
 
 **Estimate A: IMO EEXI curve fit.** Source: **IMO Resolution MEPC.333(76)**, *2021 Guidelines on the method of calculation of the attained Energy Efficiency Existing Ship Index (EEXI)*, adopted 17 June 2021: **paragraph 2.2.3.5 and the Appendix**. The guidelines provide these for the case where "the speed-power curve is not available or the sea trial report does not contain the EEDI or design load draught condition".
 
@@ -333,7 +348,26 @@ Giving **69,600–85,100 kW at 22–23 kn**.
 
 **Estimate C: sourced specification.** Installed power and service speed taken from shipbuilder or class-society records for this specific hull, where obtainable. Most defensible for the pilot; does not scale.
 
-All three are carried through to the CO₂ result. The spread between them is a reported output, not an error to be resolved.
+**Estimate D: EPA DWT-to-power regression, paired with a separately documented reference speed.** EPA (2000), Tables 4-3 and 4-5, estimate rated main-engine horsepower directly from DWT. For Vessel A, the container-specific Table 4-3 relation is:
+
+```
+MCR_D,hp = 0.80 · DWT − 749.4
+MCR_D,kW = MCR_D,hp · 0.745699872
+```
+
+For Vessel A this gives **124,539 hp = 92,868 kW**. The regression does not estimate speed, so this scenario pairs the EPA MCR with Estimate B's independently derived container-hull Froude-speed range (21.5–23.8 kn). It is a deliberately labelled hybrid, not a claim that EPA supplies a speed–power curve. Merk (2014), Discussion Paper 2014-20, reproduces the regression in a port-emissions application. The EPA container fit has `R² = 0.59` and a typical DWT range of 20,000–70,000 t; Vessel A is therefore an extrapolation and this estimate is reported as high-uncertainty.
+
+For RCC AMERICA, an Equasis vehicle carrier, Estimate D uses EPA Table 4-5's recommended pooled container/RoRo/auto-carrier/reefer relation, based on 917 ships (`R² = 0.71`):
+
+```
+MCR_D,hp = 0.719 · DWT + 2,581
+```
+
+At 21,182 DWT this gives **17,811 hp = 13,281 kW**. EPA's regression estimates power, not speed, and no vehicle-carrier Froude calibration is held in this implementation. This D scenario therefore pairs the EPA MCR with Estimate A's EEXI vehicle-carrier reference speed (**19.96 kn**). It is explicitly a power-only sensitivity: it provides an independent MCR estimate but does not bracket speed uncertainty.
+
+The EPA regression estimates main-engine power **directly from DWT**. It must not be derived by reversing the IMO Table 17 auxiliary values: those are representative operating demands, whereas Merk's auxiliary-to-main ratios concern maximum auxiliary capacity. Merk (2014) reproduces a Ro/Ro equation with different coefficients; the primary EPA Tables 4-3 and 4-5 are used here.
+
+All available estimates are carried through to the CO₂ result. The spread between them is a reported output, not an error to be resolved.
 
 ### 2.3 Engine type
 
@@ -485,12 +519,22 @@ Implemented as a `CASE` expression in SQL. Distance to port comes from the port-
 
 ### 4.2 Main-engine power demand
 
+This is a public-data implementation of the **propeller (cube) law** and a simplification of **Equation (8)** in the Fourth IMO GHG Study 2020 (Section 2.2.5). The cube law states that propulsion power is approximately proportional to the cube of speed: `P = k · v³`. A source's reference or service speed is normally reached below rated MCR, so each estimate carries its own sourced `f_ref`, the reference-load fraction. Dividing the hourly form by that reference form gives `P_i / MCR = f_ref · (v_i / V_ref)^n`, where the current type-specific default is `n = 3`.
+
+The calculation is valid as a first-order propulsion estimate when `V_ref` and `MCR` represent the same vessel and reference condition, and when the cubic speed--power relationship is adequate. Strictly, `v` is speed through water. This workflow uses smoothed speed over ground derived from GFW positions as its public-data proxy. The full IMO speed--power equation additionally includes instantaneous and reference draught, weather and hull-fouling corrections, and a vessel-specific speed--power correction. The GFW hourly presence product does not supply these inputs reliably: it provides derived speed but not operational draught, weather exposure, hull condition, or an observed vessel-specific power curve. They are therefore not imputed.
+
+This formulation applies **only to the main propulsion engine**. Auxiliary-engine and boiler demand are not assumed to scale with speed: they are estimated separately from IMO Table 17 by ship type, size band, and operating mode (Section 4.3). Total onboard power is consequently the sum of main-engine, auxiliary-engine, and boiler demand. The resulting annual CO2 estimate is checked against THETIS-MRV verified emissions for EU-covered activity (Section 8.3); any systematic difference is reported as model uncertainty, not treated as proof that the hourly approximation is exact.
+
 ```
-Load_i  = ( SOḠ_i / V )³                     capped at 1.0
+Load_i  = f_ref · ( SOḠ_i / V_ref )ⁿ         capped at 1.0
 Ẇ_ME,i  = MCR · Load_i
 ```
 
 with `Ẇ_ME,i = 0` where `Load_i < 0.07` (Section 3.5) and in At berth / Anchored modes.
+
+For Estimate A, `f_ref = 0.75`: MEPC.333(76) defines `V_ref` at 75% of original MCR (or 83% of limited MCR), and this implementation uses the original `MCR_avg` curve. Estimate D uses 0.83 where its EPA service-speed convention supplies `V_ref`, and 0.75 where it is paired with Estimate A's EEXI `V_ref`. The calibrated Admiralty estimate is retained as a provisional reference-power curve (`f_ref = 1.0`) because Charchalis's Table 1 does not establish the installed-MCR fraction; it must not be interpreted as an independently verified MCR estimate until that ambiguity is resolved. A sourced Estimate C must record its own reference fraction and condition.
+
+The formula remains a calm-water, clean-hull approximation using SOG as a proxy for STW. Hourly draught, weather, fouling, and a vessel-specific curve are unavailable in the selected GFW products and are not imputed. Accordingly, the current output does not claim an inter-year efficiency trend independent of observed activity and speed.
 
 ### 4.3 Auxiliary engine and boiler demand
 
@@ -553,10 +597,10 @@ Every engine parameter is estimated, not observed. Weather, hull fouling, draugh
 ### Purpose
 Attribute the vessel's annual CO₂ to countries under each allocation rule.
 
-This section covers workflow steps 5, 9, and 10. First, EEZ assignment and the >95%-of-hours rule identify international ships. Annual emissions are then aggregated by flag, registered owner, ISM manager, and commercial-manager-as-operator-proxy country. The bunker-fuel-sales option remains a documented fleet-scale extension, not a two-vessel output, because individual refuelling locations are unavailable.
+This section covers workflow steps 5, 9, and 10. International emissions are identified at the **voyage** level: a voyage between ports in different countries is international, and only its attributed emissions enter national allocation. Annual international emissions are then aggregated by flag, registered owner, ISM manager, and commercial-manager-as-operator-proxy country. The EEZ >95%-of-hours rule is retained as a vessel-level diagnostic, not as the allocation gate. The bunker-fuel-sales option remains a documented fleet-scale extension, not a two-vessel output, because individual refuelling locations are unavailable.
 
 ### Inputs
-`emissions_year` (Section 4); Equasis company records; EEZ v12 and High Seas v2 for the domestic/international test.
+`emissions_hour` and coverage (Section 4); GFW port-visit events and their port-country fields; Equasis company records; EEZ v12 and High Seas v2 for the diagnostic domestic/international test.
 
 ### 5.1 Allocation keys
 
@@ -583,19 +627,25 @@ Equasis supplies an **IMO company identification number** for each role (4178111
 ### 5.3 Allocation
 
 ```
-E_c,option = Σ_ships E_ship · 1[ key_option(ship) = c ]
+E_c,option = Σ_ships E_ship,international · 1[ key_option(ship) = c ]
 ```
 
-At n = 2 this reduces to assigning each vessel's total to one country per option. The SQL is written as the general aggregation so the fleet case needs no change.
+At n = 2 this reduces to assigning each vessel's **international** total to one country per option. The SQL is written as the general aggregation so the fleet case needs no change.
 
-### 5.4 International/domestic test
+### 5.4 Voyage-based international attribution
 
-Assign each vessel-hour to an EEZ by point-in-polygon against EEZ v12 (285 polygons, EPSG:4326); hours matching no polygon fall to the high seas. A ship is domestic if >95% of its hours lie in a single country's EEZ.
+Following Option 2 of the Fourth IMO GHG Study (2020), a voyage is domestic when its departure and arrival ports are in the same country, and international when they are in different countries. Consecutive GFW port calls form the voyage sequence. Each hourly emission is assigned the label of the interval from the previous port call's end through the current destination call's end: this includes the sea passage and assigns the destination port call's auxiliary/boiler emissions to the voyage that preceded it. Only hours labelled international enter `international_emissions_year` and the subsequent national-allocation tables.
 
-⚠ EEZ v12 contains 21 joint-regime and 35 overlapping-claim polygons. `ISO_SOV1` is never null (unlike GFW's own layer), so the default is to assign to `ISO_SOV1` and report affected hours separately. **This rule is not yet settled**: Selin et al.'s supplementary Table 1 documents their territory handling and has not been consulted.
+Hours before the first complete leg, after the last complete leg, or linked to a port call with no country cannot be labelled directly. Within each vessel-year, their CO2 is apportioned using the international share of **labelled modelled hours**, rather than the share of labelled CO2. This implements the IMO study's allocation of unassigned year-boundary time by the vessel's international/domestic shipping split while keeping the split activity-based. `international_voyage_diagnostics.csv` reports the labelled and boundary/unknown hours so this assumption is visible.
+
+This reproduces the IMO allocation *definition*, but not its port-detection algorithm. The IMO study derives port stops from raw high-frequency AIS speed, distance-to-nearest-port and area-specific stop criteria. This project instead uses GFW's confidence-filtered port-visit events, which are already inferred from AIS and may include anchorage, canal or waiting events. Consecutive calls are retained because they are also needed for the fuel model; port-call sequence and implausible-leg checks are reported as QA. Results should therefore be described as a GFW-event implementation of IMO Option 2, not a literal reproduction of the IMO stop-identification procedure.
+
+The former EEZ test remains a diagnostic: assign vessel-hours to EEZ v12 (285 polygons, EPSG:4326), excluding inactive and high-seas hours from its denominator. A vessel is domestic only if >95% of its in-EEZ hours fall inside one country's EEZ; otherwise it is international. It no longer determines whether the vessel's entire annual CO2 is allocated.
+
+⚠ EEZ v12 contains 21 joint-regime and 35 overlapping-claim polygons. `ISO_SOV1` is never null (unlike GFW's own layer), so the default is to assign to `ISO_SOV1` and report affected hours separately. The affected hours are diagnostic only and cannot change the voyage-based allocation.
 
 ### Outputs
-`allocation`: country × year × option × scenario, in tonnes CO₂.
+`international_emissions_year`: vessel × year × scenario, in tonnes CO₂, including direct and boundary-split diagnostics. `allocation`: country × year × option × scenario, in tonnes CO₂ from international voyages only.
 
 ***
 
@@ -671,7 +721,7 @@ Selin et al.'s equity evidence rests on owner–operator–manager co-location a
 
 ### 8.1 Sensitivity: the two dominant drivers
 
-1. **Installed power and design speed**: three estimates (Section 2.2), carried in parallel with no primary.
+1. **Installed power and design speed**: applicable estimation approaches from Section 2.2, carried in parallel with no primary. RCC AMERICA's D shares A's speed and therefore varies power only.
 2. **Speed-smoothing window**: the v³ bias runs from 1.67× unsmoothed to 1.19× at a 3-hour window.
 
 The scenario space is a SQL `CROSS JOIN` of these against the hour-level facts. Remaining uncertainties: coverage correction, displacement convention, TEU estimation, engine-type assignment: are documented qualitatively rather than propagated.
@@ -689,7 +739,7 @@ A separate, explicitly non-primary branch tests the Fourth IMO GHG Study 2020 ap
 | Leg-speed plausibility | Great-circle distance between port calls ÷ leg duration should give sensible average speeds. |
 | Port-call/track agreement | Berth periods in the track must coincide with port-visit events. Confirmed on 2024-01-15: the vessel is stationary until 13:00 and the port visit ends 13:32. |
 | Identity integrity | Exactly one distinct IMO in every presence pull. |
-| Fleet-envelope check | Estimated design speed must fall within the observed modern container fleet range (6.0–24.5 kn). Estimate A fails this test at 28.92 kn. |
+| Fleet-envelope check | Estimated design speed must fall within the observed modern container fleet range (6.0–24.5 kn). Estimate A is 25.55 kn after the MEPC.333(76) cap, still just above the envelope. |
 
 THETIS-MRV is used **only** to validate, never as an input: it is EU-scope, and this study allocates emissions globally.
 

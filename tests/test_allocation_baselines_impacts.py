@@ -8,7 +8,13 @@ import pandas as pd
 import pytest
 
 from emissions_allocation import baselines, impacts
-from emissions_allocation.allocation import ALLOCATION_OPTIONS, allocate, summarise_options, vessel_key_table
+from emissions_allocation.allocation import (
+    ALLOCATION_OPTIONS,
+    allocate,
+    international_emissions_year,
+    summarise_options,
+    vessel_key_table,
+)
 from emissions_allocation.config import ConfigError, load_config
 from emissions_allocation.db import Database
 
@@ -91,3 +97,44 @@ def test_allocation_covers_every_scenario(cfg, synthetic_emissions) -> None:
         allocation = allocate(db, cfg, synthetic_emissions)
     flag_2024 = allocation[(allocation["option"] == "flag") & (allocation["year"] == 2024)]
     assert len(flag_2024) == len(cfg.scenarios())
+
+
+def test_voyage_allocation_includes_destination_call_and_splits_boundaries(cfg) -> None:
+    """Destination-port hours retain the preceding voyage's country label."""
+    timestamps = pd.date_range("2024-01-01", periods=11, freq="h")
+    hourly = pd.DataFrame({
+        "imo": VESSEL_A,
+        "ts": timestamps,
+        "scenario_id": "eexi_w3",
+        "power_estimate": "eexi",
+        "smoothing_window": 3,
+        "gap_treatment": "linear_coverage",
+        "co2_tonnes": 10.0,
+    })
+    legs = pd.DataFrame([
+        {
+            "imo": VESSEL_A, "depart_ts": timestamps[2],
+            "arrive_ts": timestamps[4], "label_end_ts": timestamps[6],
+            "is_international": True,
+        },
+        {
+            "imo": VESSEL_A, "depart_ts": timestamps[6],
+            "arrive_ts": timestamps[8], "label_end_ts": timestamps[10],
+            "is_international": False,
+        },
+    ])
+    coverage = pd.DataFrame([{
+        "imo": VESSEL_A, "year": 2024, "coverage_raw": 1.0,
+        "coverage_active": 1.0, "inactive_hours": 0,
+    }])
+
+    with Database(spatial=False) as db:
+        result = international_emissions_year(db, hourly, legs, coverage, cfg)
+
+    row = result.iloc[0]
+    assert row["labelled_hours"] == 8
+    assert row["international_hours_direct"] == 4
+    assert row["unallocated_hours"] == 3
+    assert row["international_hour_share"] == pytest.approx(0.5)
+    # Four directly international hours plus half of the three boundary hours.
+    assert row["co2_tonnes"] == pytest.approx(55.0)

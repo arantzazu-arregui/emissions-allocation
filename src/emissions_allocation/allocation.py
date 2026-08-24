@@ -6,9 +6,9 @@ rests on national marine-bunker sales statistics, and allocating one ship's emis
 to a bunkering country would require knowing where it took fuel, which no public
 dataset records. Out of scope by construction, not by omission.
 
-At n = 2 the allocation reduces to assigning each vessel's total to one country per
-option, but the SQL is written as the general fleet aggregation so scaling needs no
-change.
+At n = 2 the allocation reduces to assigning each vessel's international total to
+one country per option, but the SQL is written as the general fleet aggregation so
+scaling needs no change.
 
 Vessel A's four options converge on China under the paper's fixed country alignment;
 vessel B remains the open-registry contrast whose options diverge by construction.
@@ -79,6 +79,50 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
 
     db.register_frame("vessel_key", vessel_key_table(cfg))
     return db.sql("50_allocation").df()
+
+
+def international_emissions_year(
+    db: Database,
+    emissions_hour: pd.DataFrame,
+    voyage_leg: pd.DataFrame,
+    coverage: pd.DataFrame,
+    cfg: Config,
+) -> pd.DataFrame:
+    """Aggregate voyage-based international emissions to vessel-year scenarios.
+
+    Parameters
+    ----------
+    db : Database
+        Open DuckDB connection for interval joining and aggregation.
+    emissions_hour : pandas.DataFrame
+        Modelled hourly CO2 emissions in tonnes CO2 per hour.
+    voyage_leg : pandas.DataFrame
+        Consecutive port-pair legs including country-based international labels.
+    coverage : pandas.DataFrame
+        Vessel-year coverage fractions used for the §4.5 correction.
+    cfg : Config
+        Run configuration controlling coverage correction and warning threshold.
+
+    Returns
+    -------
+    pandas.DataFrame
+        International vessel-year-scenario CO2 totals, including direct-label and
+        boundary-allocation diagnostics.
+
+    Notes
+    -----
+    A destination port call inherits its preceding voyage's label. Unlabelled
+    boundary emissions are apportioned by the labelled international share of
+    modelled hours for that vessel-year.
+    """
+    db.register_frame("emissions_hour", emissions_hour)
+    db.register_frame("voyage_leg", voyage_leg)
+    db.register_frame("coverage", coverage)
+    return db.sql(
+        "44_international_emissions_year",
+        apply_coverage_correction=bool(cfg.run["coverage_correction"]),
+        coverage_warn=float(cfg.run["hour_coverage_warn"]),
+    ).df()
 
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:

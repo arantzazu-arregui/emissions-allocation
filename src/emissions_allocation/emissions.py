@@ -48,15 +48,29 @@ PREFILTER_DEGREES = 0.12
 # rather than hardcoded, so adding a ship type is a config edit.
 
 
-def main_engine_load(sog_kn: pd.Series, design_speed_kn: float) -> pd.Series:
-    """``Load_i = (SOG_smoothed / V)^3``, capped at 1.0 (§4.2).
+def main_engine_load(
+    sog_kn: pd.Series,
+    reference_speed_kn: float,
+    load_at_reference: float,
+    exponent: float = 3.0,
+) -> pd.Series:
+    """Estimate capped propulsion load from speed and a reference condition.
 
-    The cube is why §1.6's smoothing is mandatory rather than cosmetic: cell-centroid
+    ``Load_i = f_ref * (SOG_smoothed / V_ref)^n``, capped at 1.0, where ``f_ref``
+    is the documented fraction of rated MCR at the source's reference speed. The
+    cube is why §1.6's smoothing is mandatory rather than cosmetic: cell-centroid
     quantisation makes the raw speed oscillate, and the error does not average out.
     """
-    if design_speed_kn <= 0:
-        raise ValueError(f"design speed must be positive, got {design_speed_kn}")
-    return np.minimum((sog_kn / design_speed_kn) ** 3, 1.0)
+    if reference_speed_kn <= 0:
+        raise ValueError(f"reference speed must be positive, got {reference_speed_kn}")
+    if not 0 < load_at_reference <= 1:
+        raise ValueError(f"reference load must be in (0, 1], got {load_at_reference}")
+    if exponent <= 0:
+        raise ValueError(f"speed exponent must be positive, got {exponent}")
+    return np.minimum(
+        load_at_reference * (sog_kn / reference_speed_kn) ** exponent,
+        1.0,
+    )
 
 
 def load_correction_factor(load: pd.Series | float, factors: dict) -> pd.Series | float:
@@ -101,7 +115,12 @@ def build_hour_model(
         "operating_mode": modes,
         "gap_treatment": gap_treatment,
     })
-    out["me_load"] = main_engine_load(out["sog"].fillna(0.0), estimate.design_speed_kn)
+    out["me_load"] = main_engine_load(
+        out["sog"].fillna(0.0),
+        estimate.design_speed_kn,
+        estimate.load_at_reference,
+        estimate.speed_exponent,
+    )
 
     # §4.2: main engine off at berth and at anchor, and below the 7% MCR cutoff.
     # "At engine loads below 7%, fuel consumption and all the emissions derived
@@ -112,7 +131,6 @@ def build_hour_model(
     )
     out["w_me_kw"] = np.where(running, estimate.mcr_kw * out["me_load"], 0.0)
 
-    engine = vessel.require_spec("engine_type")
     # Fuel is assigned per hour in §3; SFC and EF are looked up from it in SQL via
     # a join, but the per-hour base values depend on the fuel, so they are resolved
     # here where the fuel column is available.
@@ -207,7 +225,12 @@ def assign_modes(
         "lon": spine["lon"],
         "sog": spine[f"{speed_prefix}_w{window}"].fillna(0.0),
     })
-    hour_load["me_load"] = main_engine_load(hour_load["sog"], estimate.design_speed_kn)
+    hour_load["me_load"] = main_engine_load(
+        hour_load["sog"],
+        estimate.design_speed_kn,
+        estimate.load_at_reference,
+        estimate.speed_exponent,
+    )
     db.register_frame("hour_load", hour_load)
 
     liquid_tankers = cfg.factors["operating_mode_matrix"]["liquid_tanker_types"]

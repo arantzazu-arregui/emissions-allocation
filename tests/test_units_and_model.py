@@ -16,8 +16,11 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
+
+from emissions_allocation.emissions import main_engine_load
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FACTORS = yaml.safe_load(
@@ -102,6 +105,17 @@ def test_co2_low_load_factors_are_unity_at_every_load() -> None:
 def test_auxiliaries_are_not_load_corrected() -> None:
     """IMO equation (11): ``FC_AE|BO,i = SFC_base * W_AE|BO,i``, no ``CF_L``."""
     assert FACTORS["load_correction"]["aux_boiler_load_corrected"] is False
+
+
+def test_reference_load_scales_the_speed_power_curve() -> None:
+    """A reference speed is normally reached below installed MCR."""
+    load = main_engine_load(pd.Series([20.0]), 20.0, load_at_reference=0.75)
+    assert load.iloc[0] == pytest.approx(0.75)
+
+
+def test_speed_exponent_is_configurable_per_reference_curve() -> None:
+    load = main_engine_load(pd.Series([10.0]), 20.0, 0.83, exponent=3.5)
+    assert load.iloc[0] == pytest.approx(0.83 * 0.5**3.5)
 
 
 # ---------------------------------------------------------------------------
