@@ -129,6 +129,15 @@ def test_table17_is_range_joinable(db) -> None:
     assert row == (630.0, 1800.0)
 
 
+def test_table17_small_vessel_override_is_machine_readable(db) -> None:
+    row = db.query("""
+        SELECT auxiliary_method, auxiliary_mcr_fraction, boiler_method
+        FROM imo_table17_mcr_override
+        WHERE 400 >= mcr_min AND (400 < mcr_max OR mcr_max IS NULL)
+    """).fetchone()
+    assert row == ("mcr_fraction", 0.05, "table")
+
+
 def test_table17_covers_every_ship_type_and_mode(db) -> None:
     """All 19 Table 17 ship types, so any hull resolves without transcription.
 

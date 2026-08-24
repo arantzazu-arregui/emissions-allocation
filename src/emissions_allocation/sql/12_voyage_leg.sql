@@ -46,12 +46,18 @@ SELECT
     port_name                         AS dest_port_name,
     datediff('second', prev_end_ts, start_ts) / 3600.0 AS leg_hours,
     -- §3.1 condition 3.
-    (   list_contains($eu27, prev_port_iso3)
-    AND list_contains($eu27, port_iso3)) AS is_eu_eu,
+    (   (list_contains($eu27, prev_port_iso3)
+          OR (year(start_ts) <= $uk_in_eu_through AND prev_port_iso3 = 'GBR'))
+    AND (list_contains($eu27, port_iso3)
+          OR (year(start_ts) <= $uk_in_eu_through AND port_iso3 = 'GBR')))
+        AS is_eu_eu,
     -- An international leg is unambiguous when the two ports sit in different
     -- countries. §5.4's ">95% of hours in one EEZ" test is kept as the cross-check
     -- because the fleet-scale version needs it.
-    (prev_port_iso3 IS DISTINCT FROM port_iso3) AS is_international
+    CASE
+        WHEN prev_port_iso3 IS NULL OR port_iso3 IS NULL THEN NULL
+        ELSE prev_port_iso3 <> port_iso3
+    END AS is_international
 FROM ordered
 -- The first call of each vessel has no predecessor and so begins no leg.
 WHERE prev_end_ts IS NOT NULL

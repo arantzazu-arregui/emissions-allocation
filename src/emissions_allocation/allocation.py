@@ -75,6 +75,13 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
         ``option, country, gcb_name, year, scenario_id, ..., co2_tonnes, co2_mt``
         using the paper-aligned country mapping.
     """
+    required = {"international_hour_share", "unallocated_hours"}
+    missing = required - set(emissions_year.columns)
+    if missing:
+        raise ValueError(
+            "allocation requires international-emissions totals; missing §5.4 "
+            f"diagnostics: {sorted(missing)}"
+        )
     db.register_frame("emissions_year", emissions_year)
 
     db.register_frame("vessel_key", vessel_key_table(cfg))

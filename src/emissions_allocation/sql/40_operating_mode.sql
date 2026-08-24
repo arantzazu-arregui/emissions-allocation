@@ -53,7 +53,13 @@ SELECT
     d.coast_nm,
     v.in_port_visit,
     v.visit_at_dock,
+    d.coast_layer_loaded,
     CASE
+        -- A null coast distance is meaningful only after a coastline layer was
+        -- loaded and searched. Never silently interpret an absent layer as ocean.
+        WHEN NOT coalesce(d.coast_layer_loaded, FALSE) THEN error(
+            'coastline layer was not loaded; operating modes cannot be assigned'
+        )
         -- SOG <= 1 kn
         WHEN h.sog <= 1 THEN
             CASE

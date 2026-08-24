@@ -25,6 +25,8 @@ annual AS (
         count(*) FILTER (WHERE e.is_international) AS international_hours_direct,
         count(*) FILTER (WHERE e.is_international IS NULL) AS unallocated_hours,
         sum(e.co2_tonnes) FILTER (WHERE e.is_international) AS co2_tonnes_direct,
+        sum(e.co2_tonnes) FILTER (WHERE e.is_international = FALSE)
+            AS co2_tonnes_domestic,
         sum(e.co2_tonnes) FILTER (WHERE e.is_international IS NULL)
             AS co2_tonnes_unallocated
     FROM labelled AS e
@@ -37,9 +39,22 @@ split AS (
         a.international_hours_direct / nullif(a.labelled_hours, 0)::DOUBLE
             AS international_hour_share,
         coalesce(a.co2_tonnes_direct, 0)
+          / nullif(
+                coalesce(a.co2_tonnes_direct, 0)
+                + coalesce(a.co2_tonnes_domestic, 0),
+                0
+            ) AS international_co2_share,
+        coalesce(a.co2_tonnes_direct, 0)
           + coalesce(a.co2_tonnes_unallocated, 0)
-            * coalesce(a.international_hours_direct
-                / nullif(a.labelled_hours, 0)::DOUBLE, 0) AS co2_tonnes_observed
+            * coalesce(
+                coalesce(a.co2_tonnes_direct, 0)
+                / nullif(
+                    coalesce(a.co2_tonnes_direct, 0)
+                    + coalesce(a.co2_tonnes_domestic, 0),
+                    0
+                  ),
+                0
+              ) AS co2_tonnes_observed
     FROM annual AS a
 )
 SELECT

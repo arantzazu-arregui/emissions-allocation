@@ -77,11 +77,13 @@ auxiliary_boiler_power:
   page: {printed: 68, pdf: 96}
   modes: [at_berth, anchored, manoeuvring, sea]   # column order for every band below
 
-  # Decision tree that OVERRIDES the table for small ships, quoted from p.68:
+  # Decision tree that OVERRIDES the table for small ships, quoted from p.68.
+  # Bands are [mcr_min, mcr_max); null max is open-ended. These machine-readable
+  # actions are applied after the Table 17 range lookup.
   overrides:
-    - {mcr_min: 0,   mcr_max: 150, rule: "auxiliary engine and boiler both set to zero"}
-    - {mcr_min: 150, mcr_max: 500, rule: "auxiliary engine = 5% of installed main engine power; boiler from the table"}
-    - {mcr_min: 500, mcr_max: null, rule: "table values used as-is"}
+    - {mcr_min: 0,   mcr_max: 150, auxiliary: zero,         boiler: zero}
+    - {mcr_min: 150, mcr_max: 500, auxiliary: mcr_fraction, auxiliary_mcr_fraction: 0.05, boiler: table}
+    - {mcr_min: 500, mcr_max: null, auxiliary: table,        boiler: table}
     # Neither override applies to vessel A.
 
   ship_types:

@@ -273,10 +273,8 @@ def check_smoothing_sensitivity(spine: pd.DataFrame, cfg: Config) -> Check:
 # MRV scope reconstruction
 # ---------------------------------------------------------------------------
 
-# EEA for MRV purposes: EU27 plus Norway and Iceland. The UK was in scope through
-# the Brexit transition, which ended 31 December 2020.
+# EEA for MRV purposes: EU plus Norway and Iceland.
 _EEA_EXTRA = {"NOR", "ISL"}
-UK_IN_SCOPE_THROUGH = 2020
 
 # Below this share of port calls carrying a usable port-of-call flag, the scope
 # reconstruction is too sparse to compare against, and the check reports PENDING
@@ -286,12 +284,9 @@ MIN_DOCK_SHARE = 0.10
 
 def eea_countries(year: int) -> set[str]:
     """EEA membership for MRV scope in a given reporting year."""
-    from emissions_allocation.activity import EU27
+    from emissions_allocation.activity import eu_countries
 
-    members = set(EU27) | _EEA_EXTRA
-    if year <= UK_IN_SCOPE_THROUGH:
-        members.add("GBR")
-    return members
+    return set(eu_countries(year)) | _EEA_EXTRA
 
 
 def _naive(value) -> pd.Timestamp:

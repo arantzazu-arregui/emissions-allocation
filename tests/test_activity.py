@@ -393,10 +393,11 @@ def test_snake_case_port_visit_block_is_read() -> None:
 
 
 def test_eu_membership_helper() -> None:
-    assert is_eu("NLD") and is_eu("DEU") and is_eu("POL")
-    assert not is_eu("CHN")
-    assert not is_eu("GBR")  # left the EU; not in EU27
-    assert not is_eu(None)
+    assert is_eu("NLD", 2024) and is_eu("DEU", 2024) and is_eu("POL", 2024)
+    assert not is_eu("CHN", 2024)
+    assert is_eu("GBR", 2020)
+    assert not is_eu("GBR", 2021)
+    assert not is_eu(None, 2024)
 
 
 # ---------------------------------------------------------------------------

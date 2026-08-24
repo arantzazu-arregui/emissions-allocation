@@ -184,6 +184,32 @@ class Database:
                 "INSERT INTO imo_table17 VALUES (?, ?, ?, ?, ?, ?, ?)", rows
             )
 
+        override_rows: list[tuple[Any, ...]] = []
+        for override in block.get("overrides") or []:
+            auxiliary = override.get("auxiliary")
+            boiler = override.get("boiler")
+            if auxiliary not in {"zero", "table", "mcr_fraction"}:
+                raise ValueError(f"invalid Table 17 auxiliary override: {auxiliary!r}")
+            if boiler not in {"zero", "table"}:
+                raise ValueError(f"invalid Table 17 boiler override: {boiler!r}")
+            fraction = override.get("auxiliary_mcr_fraction")
+            if auxiliary == "mcr_fraction" and not isinstance(fraction, (int, float)):
+                raise ValueError("mcr_fraction override requires auxiliary_mcr_fraction")
+            override_rows.append((
+                override["mcr_min"], override.get("mcr_max"), auxiliary,
+                float(fraction) if fraction is not None else None, boiler,
+            ))
+        self.con.execute("""
+            CREATE OR REPLACE TABLE imo_table17_mcr_override (
+                mcr_min DOUBLE, mcr_max DOUBLE, auxiliary_method VARCHAR,
+                auxiliary_mcr_fraction DOUBLE, boiler_method VARCHAR
+            );
+        """)
+        if override_rows:
+            self.con.executemany(
+                "INSERT INTO imo_table17_mcr_override VALUES (?, ?, ?, ?, ?)", override_rows
+            )
+
         ef_rows = [
             (fuel, spec["carbon_content"], spec["ef_f"])
             for fuel, spec in ((factors.get("emission_factors") or {}).get("fuels") or {}).items()
@@ -214,8 +240,8 @@ class Database:
             self.con.executemany("INSERT INTO imo_table19 VALUES (?, ?, ?)", sfc_rows)
 
         log.info(
-            "registered IMO lookup tables: table17=%d rows, table19=%d, table21=%d",
-            len(rows), len(sfc_rows), len(ef_rows),
+            "registered IMO lookup tables: table17=%d rows, overrides=%d, table19=%d, table21=%d",
+            len(rows), len(override_rows), len(sfc_rows), len(ef_rows),
         )
 
     # -- lifecycle ----------------------------------------------------------

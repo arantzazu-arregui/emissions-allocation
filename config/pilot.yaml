@@ -144,7 +144,7 @@ run:
   #
   # This is a documented departure from METHODOLOGY §4.5, which treats the
   # correction as uniform and negligible on the strength of 2024 alone.
-  coverage_correction: true
+  coverage_correction: false
 
   # --- §1.7 Fourth IMO GHG Study SOG-infill sensitivity --------------------
   # This is deliberately NOT the primary treatment. The Fourth IMO method fills

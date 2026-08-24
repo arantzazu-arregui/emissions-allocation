@@ -52,6 +52,26 @@ EU27 = frozenset({
     "ROU", "SVK", "SVN", "ESP", "SWE",
 })
 
+# The Brexit transition ended on 31 December 2020. This is shared by fuel-leg
+# construction and THETIS-MRV scope reconstruction so "EU port" has one meaning.
+UK_IN_EU_THROUGH = 2020
+
+
+def eu_countries(year: int) -> frozenset[str]:
+    """EU members applicable to a calendar year.
+
+    Parameters
+    ----------
+    year : int
+        Calendar year of the port call or voyage leg.
+
+    Returns
+    -------
+    frozenset[str]
+        EU27 plus the United Kingdom through 2020.
+    """
+    return EU27 | ({"GBR"} if year <= UK_IN_EU_THROUGH else set())
+
 
 # ---------------------------------------------------------------------------
 # 1.2 / 1.3 -- presence
@@ -693,8 +713,22 @@ def _parse_port_visits(events: Sequence[dict[str, Any]], imo: str) -> pd.DataFra
     return frame.sort_values("start_ts").reset_index(drop=True)
 
 
-def is_eu(iso3: str | None) -> bool:
-    return bool(iso3) and iso3 in EU27
+def is_eu(iso3: str | None, year: int) -> bool:
+    """Whether an ISO3 country was an EU member in a reporting year.
+
+    Parameters
+    ----------
+    iso3 : str or None
+        Port-country ISO3 code.
+    year : int
+        Calendar year controlling the United Kingdom's membership.
+
+    Returns
+    -------
+    bool
+        True for EU ports under the year-aware fuel-rule definition.
+    """
+    return bool(iso3) and iso3 in eu_countries(year)
 
 
 # ---------------------------------------------------------------------------

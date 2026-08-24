@@ -36,9 +36,10 @@ def gcb(cfg):
 @pytest.fixture(scope="module")
 def synthetic_emissions(cfg):
     return pd.DataFrame([
-        {"imo": VESSEL_A, "year": year, "scenario_id": s["scenario_id"],
-         "power_estimate": s["power_estimate"], "smoothing_window": s["smoothing_window"],
-         "co2_tonnes": 100_000.0}
+         {"imo": VESSEL_A, "year": year, "scenario_id": s["scenario_id"],
+          "power_estimate": s["power_estimate"], "smoothing_window": s["smoothing_window"],
+         "co2_tonnes": 100_000.0, "international_hour_share": 1.0,
+         "unallocated_hours": 0}
         for year in (2023, 2024) for s in cfg.scenarios()
     ])
 
@@ -99,6 +100,11 @@ def test_allocation_covers_every_scenario(cfg, synthetic_emissions) -> None:
     assert len(flag_2024) == len(cfg.scenarios())
 
 
+def test_allocation_rejects_total_emissions(cfg, synthetic_emissions) -> None:
+    with Database() as db, pytest.raises(ValueError, match="international-emissions"):
+        allocate(db, cfg, synthetic_emissions.drop(columns=["international_hour_share"]))
+
+
 def test_voyage_allocation_includes_destination_call_and_splits_boundaries(cfg) -> None:
     """Destination-port hours retain the preceding voyage's country label."""
     timestamps = pd.date_range("2024-01-01", periods=11, freq="h")
@@ -136,5 +142,25 @@ def test_voyage_allocation_includes_destination_call_and_splits_boundaries(cfg) 
     assert row["international_hours_direct"] == 4
     assert row["unallocated_hours"] == 3
     assert row["international_hour_share"] == pytest.approx(0.5)
+    assert row["international_co2_share"] == pytest.approx(0.5)
     # Four directly international hours plus half of the three boundary hours.
     assert row["co2_tonnes"] == pytest.approx(55.0)
+
+
+def test_boundary_emissions_use_co2_not_hour_share(cfg) -> None:
+    timestamps = pd.date_range("2024-01-01", periods=5, freq="h")
+    hourly = pd.DataFrame({
+        "imo": VESSEL_A, "ts": timestamps, "scenario_id": "A_w3",
+        "power_estimate": "A", "smoothing_window": 3,
+        "gap_treatment": "linear", "co2_tonnes": [1.0, 1.0, 9.0, 9.0, 10.0],
+    })
+    legs = pd.DataFrame([
+        {"imo": VESSEL_A, "depart_ts": timestamps[0], "label_end_ts": timestamps[2], "is_international": True},
+        {"imo": VESSEL_A, "depart_ts": timestamps[2], "label_end_ts": timestamps[4], "is_international": False},
+    ])
+    coverage = pd.DataFrame([{"imo": VESSEL_A, "year": 2024, "coverage_raw": 1.0, "coverage_active": 1.0, "inactive_hours": 0}])
+    with Database(spatial=False) as db:
+        row = international_emissions_year(db, hourly, legs, coverage, cfg).iloc[0]
+    assert row["international_hour_share"] == pytest.approx(0.5)
+    assert row["international_co2_share"] == pytest.approx(0.1)
+    assert row["co2_tonnes"] == pytest.approx(3.0)

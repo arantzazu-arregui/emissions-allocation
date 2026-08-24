@@ -425,7 +425,8 @@ def test_at_berth_uses_port_visit_intervals(cfg) -> None:
         }))
         # Far from any anchorage point, but inside a port-visit interval.
         db.register_frame("position_distance", pd.DataFrame({
-            "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+                "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+                "coast_layer_loaded": [True],
         }))
         db.register_frame("port_visit_hour", pd.DataFrame({
             "imo": ["9516454"], "ts": [ts],
@@ -450,7 +451,8 @@ def test_strict_table_16_still_reads_anchored(cfg) -> None:
             "sog": [0.2], "me_load": [0.0],
         }))
         db.register_frame("position_distance", pd.DataFrame({
-            "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+                "lat": [33.75], "lon": [-118.20], "port_nm": [4.2], "coast_nm": [0.8],
+                "coast_layer_loaded": [True],
         }))
         db.register_frame("port_visit_hour", pd.DataFrame({
             "imo": ["9516454"], "ts": [ts],

@@ -111,6 +111,7 @@ def build_hour_model(
         "imo": spine["imo"],
         "ts": spine["ts"],
         "is_inactive": spine["is_inactive"],
+        "is_interpolated": spine["is_interpolated"],
         "sog": spine[f"{speed_prefix}_w{window}"],
         "operating_mode": modes,
         "gap_treatment": gap_treatment,
@@ -205,7 +206,7 @@ def register_distance_layers(db: Database, cfg: Config, spine: pd.DataFrame) -> 
 
     db.con.execute("""
         CREATE OR REPLACE TABLE position_distance AS
-        SELECT p.lat, p.lon, pd.port_nm, cd.coast_nm
+        SELECT p.lat, p.lon, pd.port_nm, cd.coast_nm, TRUE AS coast_layer_loaded
         FROM distinct_position AS p
         LEFT JOIN port_distance  AS pd ON pd.lat = p.lat AND pd.lon = p.lon
         LEFT JOIN coast_distance AS cd ON cd.lat = p.lat AND cd.lon = p.lon;
@@ -218,6 +219,16 @@ def assign_modes(
     estimate: PowerEstimate, window: int, speed_prefix: str = "sog",
 ) -> pd.Series:
     """Run the Table 16 matrix for one scenario and return the mode per hour."""
+    has_coast_status = db.query("""
+        SELECT count(*) > 0
+        FROM information_schema.columns
+        WHERE table_name = 'position_distance' AND column_name = 'coast_layer_loaded'
+    """).fetchone()[0]
+    if not has_coast_status:
+        raise RuntimeError(
+            "operating modes require a successfully loaded coastline layer; "
+            "run register_distance_layers before assign_modes"
+        )
     hour_load = pd.DataFrame({
         "imo": spine["imo"],
         "ts": spine["ts"],
@@ -259,6 +270,12 @@ def annual_emissions(
     row so separate treatment results cannot be silently combined.
     """
     ship_type, size, _unit = size_for_table17(vessel, cfg)
+    active_interpolated = int((spine["is_interpolated"] & ~spine["is_inactive"]).sum())
+    if cfg.run["coverage_correction"] and active_interpolated:
+        raise ValueError(
+            "coverage correction cannot be combined with interpolated active hours; "
+            "choose observed-hours scaling or interpolation, not both"
+        )
     db.register_frame("fuel_assignment", fuel_assignment)
     db.register_frame("coverage", coverage)
 
@@ -280,9 +297,20 @@ def annual_emissions(
             model["smoothing_window"] = window
 
             db.register_frame("hour_model", model)
-            hourly_frames.append(
-                db.sql("42_emissions_hour", ship_type=ship_type, vessel_size=size).df()
-            )
+            hourly = db.sql(
+                "42_emissions_hour", ship_type=ship_type, vessel_size=size,
+                mcr_kw=estimate.mcr_kw,
+            ).df()
+            expected = int((~spine["is_inactive"]).sum())
+            if len(hourly) != expected:
+                raise RuntimeError(
+                    f"hourly emissions join returned {len(hourly)} rows; expected {expected}. "
+                    "Check fuel assignment and IMO Table 17 coverage."
+                )
+            required = ["fuel_type", "w_ae_kw", "w_bo_kw", "co2_tonnes"]
+            if hourly[required].isna().any().any():
+                raise RuntimeError("hourly emissions contains unresolved fuel or Table 17 values")
+            hourly_frames.append(hourly)
 
     emissions_hour = pd.concat(hourly_frames, ignore_index=True)
     db.register_frame("emissions_hour", emissions_hour)

@@ -191,7 +191,10 @@ def stage_activity(cfg, args) -> None:
 
             db.register_frame("vessel_hour", spine)
             db.register_frame("port_call", port_calls)
-            db.table_from("voyage_leg", "12_voyage_leg", eu27=list(activity.EU27))
+            db.table_from(
+                "voyage_leg", "12_voyage_leg", eu27=list(activity.EU27),
+                uk_in_eu_through=activity.UK_IN_EU_THROUGH,
+            )
 
             legs = db.query("SELECT * FROM voyage_leg").df()
             eu_eu = int(legs["is_eu_eu"].sum())
@@ -421,7 +424,10 @@ def stage_allocation(cfg, args) -> None:
         )
         with Database(spatial=False) as db:
             db.register_frame("port_call", port_calls)
-            db.table_from("voyage_leg", "12_voyage_leg", eu27=list(activity.EU27))
+            db.table_from(
+                "voyage_leg", "12_voyage_leg", eu27=list(activity.EU27),
+                uk_in_eu_through=activity.UK_IN_EU_THROUGH,
+            )
             legs = db.query("SELECT * FROM voyage_leg").df()
         for vessel in cfg:
             legs.loc[legs["imo"] == vessel.imo].to_parquet(
@@ -600,7 +606,12 @@ def stage_emissions(cfg, args) -> None:
                 for mode, n in sample["operating_mode"].value_counts().items():
                     print(f"    {mode:16s} {n:>7,} h ({n / len(sample):5.1%})")
 
-            print("\n  annual CO2 (t), coverage-corrected, by power estimate:")
+            treatment = (
+                "coverage-scaled observed hours"
+                if cfg.run["coverage_correction"]
+                else "interpolated active hours (not coverage-scaled)"
+            )
+            print(f"\n  annual CO2 (t), {treatment}, by power estimate:")
             pivot = yearly[yearly["smoothing_window"] == 3].pivot_table(
                 index="year", columns="power_estimate", values="co2_tonnes"
             )
