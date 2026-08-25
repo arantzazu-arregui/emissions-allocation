@@ -247,8 +247,8 @@ sfc_base:
   unit: g/kWh
   engines:
     SSD:               {HFO: 175, MDO: 165}    # slow-speed diesel, main engine
-    MSD:               {HFO: 195, MDO: 185}    # medium-speed diesel
-    HSD:               {HFO: 205, MDO: 190}    # high-speed diesel
+    MSD:               {HFO: 185, MDO: 175}    # medium-speed diesel
+    HSD:               {HFO: 195, MDO: 185}    # high-speed diesel
     auxiliary_engine:  {HFO: 195, MDO: 185, LNG: 156}
     boiler:            {HFO: 340, MDO: 320, LNG: 285}   # "Steam Turbines (and boilers)"
 

@@ -1,6 +1,6 @@
 # Methodology
 
-**Project:** National allocation of international shipping CO₂ emissions: a two-vessel replication of Selin et al. (2021), built entirely from public data sources.
+**Project:** National allocation of international shipping CO2 emissions: a two-vessel replication of Selin et al. (2021), built entirely from public data sources.
 
 **Status:** specification. Every equation and parameter below is traced to a source, and every item marked ⚠ is an open question, not a settled value.
 
@@ -61,8 +61,8 @@ This document deliberately uses **three notation systems**, each governing the s
 | `SFC_base` | base specific fuel consumption | g/kWh |
 | `SFC_ME,i` | load-corrected main-engine SFC | g/kWh |
 | `FC_i` | fuel consumption in hour *i* | g |
-| `EFf` | fuel-based emission factor | g CO₂ / g fuel |
-| `EFe` | energy-based emission factor (not used: CO₂ is fuel-based) | g/kWh |
+| `EFf` | fuel-based emission factor | g CO2 / g fuel |
+| `EFe` | energy-based emission factor (not used: CO2 is fuel-based) | g/kWh |
 | `LLF` | low load factor | – |
 
 > **Two collisions to be aware of.**
@@ -85,9 +85,9 @@ This document deliberately uses **three notation systems**, each governing the s
 
 | Symbol | Meaning | Unit |
 |---|---|---|
-| `E_c` | CO₂ allocated to country *c* | t or Mt |
-| `B_c` | national CO₂ baseline for country *c* | Mt CO₂ |
-| `ΔE_c` | absolute addition to *c*'s budget | Mt CO₂ |
+| `E_c` | CO2 allocated to country *c* | t or Mt |
+| `B_c` | national CO2 baseline for country *c* | Mt CO2 |
+| `ΔE_c` | absolute addition to *c*'s budget | Mt CO2 |
 | `ΔE%_c` | percentage addition to *c*'s budget | % |
 
 **Architecture.** Python handles API access, parsing, and the physical model. DuckDB handles spatial joins, aggregation, allocation and reporting. The dividing principle: *lookups, joins, windows and aggregations are SQL; physical formulas are Python.*
@@ -215,6 +215,8 @@ SOḠ_i = (1/w) · Σ SOG_{i+k},   k = −(w−1)/2 … +(w−1)/2
 ```
 coverage = observed hours ÷ elapsed hours in period
 ```
+
+This is reported as `coverage_raw`. The pipeline also reports `coverage_active = observed hours ÷ (elapsed hours − inactive hours)` for the active-hour denominator; it is the only permissible divisor for an observed-hours-only coverage-correction run.
 
 Measured at **8,782 / 8,784 = 99.98%** for 2024. Selin et al. interpolated 32% of their hours from 2015 AIS; for a large container ship on major trade lanes in 2024, gap-filling is close to unnecessary. Where gaps do occur, interpolate position by nearest-neighbour and speed linearly, following the paper, and flag interpolated hours.
 
@@ -367,7 +369,7 @@ At 21,182 DWT this gives **17,811 hp = 13,281 kW**. EPA's regression estimates p
 
 The EPA regression estimates main-engine power **directly from DWT**. It must not be derived by reversing the IMO Table 17 auxiliary values: those are representative operating demands, whereas Merk's auxiliary-to-main ratios concern maximum auxiliary capacity. Merk (2014) reproduces a Ro/Ro equation with different coefficients; the primary EPA Tables 4-3 and 4-5 are used here.
 
-All available estimates are carried through to the CO₂ result. The spread between them is a reported output, not an error to be resolved.
+All available estimates are carried through to the CO2 result. The spread between them is a reported output, not an error to be resolved.
 
 ### 2.3 Engine type
 
@@ -430,7 +432,7 @@ Reproduced from **IMO Resolution MEPC.333(76), Appendix**. These belong in `conf
 ### Purpose
 Assign a fuel to every vessel-hour and attach the corresponding emission factor and specific fuel consumption.
 
-Fuel is assigned at vessel-hour grain using engine type, ECA geometry, and voyage context. Port-visit events identify actual consecutive EU-port pairs, so the EU rule uses `voyage_leg.is_eu_eu` rather than an EEZ-only proxy. The IMO Fourth GHG Study supplies both fuel-based CO₂ emission factors and fuel-/engine-specific SFC values; the 2020 sulphur cap does not change CO₂ factors.
+Fuel is assigned at vessel-hour grain using engine type, ECA geometry, and voyage context. Port-visit events identify actual consecutive EU-port pairs, so the EU rule uses `voyage_leg.is_eu_eu` rather than an EEZ-only proxy. The IMO Fourth GHG Study supplies both fuel-based CO2 emission factors and fuel-/engine-specific SFC values; the 2020 sulphur cap does not change CO2 factors.
 
 ### Inputs
 * IMO Fourth GHG Study 2020, Tables 18, 19, 20, 21
@@ -447,6 +449,8 @@ Following Selin et al., a vessel-hour is assigned distillate fuel (MDO/MGO) when
 
 Condition 2 is a point-in-polygon test in DuckDB. Condition 3 is read directly from `voyage_leg.is_eu_eu`: a genuine improvement on the EEZ proxy that gridded-only data would have forced.
 
+EU membership is year-aware: the EU27 applies throughout, and the United Kingdom is included through 2020, the end of the Brexit transition period.
+
 Both conditions are live for this vessel: it makes 39 US calls (North American ECA) and 28 calls at Dutch, German and Belgian ports (North Sea ECA), with **27 consecutive EU→EU legs** across the period.
 
 ⚠ The ECA shapefile predates the Mediterranean SOx ECA (in force May 2025). Irrelevant to a period ending in 2024; must be added if the horizon extends.
@@ -461,11 +465,11 @@ The fallback records `main_fuel_assignment_method` (`table_9` or `type_size_mode
 
 ### 3.2 The IMO 2020 sulphur cap
 
-The study period straddles the 0.50% global sulphur cap of 1 January 2020, which moved most of the fleet from HFO to VLSFO. **For CO₂ purposes this is immaterial**: the Fourth IMO GHG Study assigns low-sulphur HFO the same carbon content and emission factor as HFO (Table 21, `LSHFO 1.0%` → 3.114). Whether the vessel carries a scrubber therefore affects SOx, not CO₂. The fuel-switch date is recorded for transparency but does not change the result.
+The study period straddles the 0.50% global sulphur cap of 1 January 2020, which moved most of the fleet from HFO to VLSFO. **For CO2 purposes this is immaterial**: the Fourth IMO GHG Study assigns low-sulphur HFO the same carbon content and emission factor as HFO (Table 21, `LSHFO 1.0%` → 3.114). Whether the vessel carries a scrubber therefore affects SOx, not CO2. The fuel-switch date is recorded for transparency but does not change the result.
 
 ### 3.3 Emission factors (Table 21)
 
-| Fuel | Carbon content | `EF_f` (g CO₂ / g fuel) |
+| Fuel | Carbon content | `EF_f` (g CO2 / g fuel) |
 |---|---|---|
 | HFO | 0.8493 | **3.114** |
 | LSHFO 1.0% | 0.8493 | **3.114** |
@@ -483,17 +487,17 @@ The study period straddles the 0.50% global sulphur cap of 1 January 2020, which
 
 ### 3.5 Low-load adjustment (Table 20)
 
-Low-load factors for CO₂ are **1.00 at every load**: CO₂ varies directly with fuel consumption, which is already load-dependent, so no adjustment is applied. One rule does carry over: **the main engine reports no fuel consumption or emissions below 7% MCR.**
+Low-load factors for CO2 are **1.00 at every load**: CO2 varies directly with fuel consumption, which is already load-dependent, so no adjustment is applied. One rule does carry over: **the main engine reports no fuel consumption or emissions below 7% MCR.**
 
 ### Outputs
 `config/emission_factors.yaml`, and a `fuel_assignment` table at vessel-hour grain carrying `fuel_type`, `in_eca`, `is_eu_eu_leg`.
 
 ***
 
-# 4. Calculate CO₂ emissions
+# 4. Calculate CO2 emissions
 
 ### Purpose
-Convert the hourly activity series into CO₂ mass, per hour, summed to ship-year.
+Convert the hourly activity series into CO2 mass, per hour, summed to ship-year.
 
 Each vessel-hour receives an operating mode, smoothed-speed main-engine load, the 7% MCR threshold, auxiliary and boiler demand, load-corrected main-engine SFC, and the assigned fuel factor before it is summed to ship-year.
 
@@ -513,7 +517,7 @@ IMO Table 16 assigns one of five modes from speed, main-engine load, distance to
 | >5 | ≤0.65 | Manoeuvring | Slow transit | Slow transit | Slow transit | Slow transit |
 | >5 | >0.65 | Manoeuvring | Normal cruising | Normal cruising | Normal cruising | Normal cruising |
 
-Implemented as a `CASE` expression in SQL. Distance to port comes from the port-call anchorage coordinates; distance to coast requires a coastline layer (Marine Regions *Marine and Land Zones v4*).
+Implemented as a `CASE` expression in SQL. Distance to port comes from the port-call anchorage coordinates. Marine Regions *Marine and Land Zones v4* supplies 328 country geometries containing each country's land merged with its EEZ, rather than shorelines directly. The pipeline differences each geometry against its matching EEZ v12 polygon, validates the 253 non-empty derived land polygons, and measures distance to that land. It raises if the source geometry type or feature count differs from the documented layer, so an empty or incompatible coastline layer cannot silently be interpreted as open ocean. EEZ boundaries use territorial-sea baselines, so internal waters landward of that baseline read as land; for vessel A this affects 0.2% of distinct positions, all harbour positions already within 1 nm of a port.
 
 ⚠ GFW does not expose AIS navigational status, so "at berth" and "anchored" are separated by distance alone. This matters: for the 12,000–14,499 TEU band, Table 17 gives 1,300 kW auxiliary at berth against 1,800 kW anchored. **This vessel spends 24.9% of the study period inside port visits**: 17,427 hours of ~70,128, median stay 30.1 hours: so auxiliary and boiler demand is a large share of the total, not a correction term.
 
@@ -566,7 +570,7 @@ Auxiliary engines and boilers are **not** corrected by `CF_L`: **IMO equation (1
 FC_AE|BO,i = SFC_base · Ẇ_AE|BO,i
 ```
 
-### 4.5 Hourly and annual CO₂
+### 4.5 Hourly and annual CO2
 
 ```
 FC_i      = [ Ẇ_ME,i·SFC_ME,i + Ẇ_AE,i·SFC_base,AE + Ẇ_BO,i·SFC_base,BO ] · Δt   [g fuel]
@@ -574,15 +578,15 @@ E_CO2,i   = FC_i · EFf_i / 10⁶                                               
 E_ship,y  = Σ_i E_CO2,i                                                           [t / year]
 ```
 
-with `Δt = 1 h`. Where coverage correction is applied, `E_ship,y ÷ coverage`; measured coverage of 99.98% makes this a negligible adjustment for this vessel, but it is computed and reported either way.
+with `Δt = 1 h`. The primary run follows Selin et al.: active reception gaps are interpolated and modelled once, so annual totals are **not** also divided by coverage. Coverage scaling is permitted only for an observed-hours-only run; the pipeline raises if it is combined with active interpolated hours. Both quantities remain available as diagnostics.
 
-`LLF` does not appear because CO₂'s low-load factor is 1.00 at every load (Section 3.5).
+`LLF` does not appear because CO2's low-load factor is 1.00 at every load (Section 3.5).
 
 ### Outputs
 
 | Table | Grain |
 |---|---|
-| `emissions_hour` | vessel × hour × scenario: mode, loads, fuel, CO₂ |
+| `emissions_hour` | vessel × hour × scenario: mode, loads, fuel, CO2 |
 | `emissions_year` | vessel × year × scenario |
 
 "Scenario" is the cross join of three power/speed estimates × the smoothing-window values (Section 8).
@@ -595,7 +599,7 @@ Every engine parameter is estimated, not observed. Weather, hull fouling, draugh
 # 5. Classify international ships and allocate emissions to countries
 
 ### Purpose
-Attribute the vessel's annual CO₂ to countries under each allocation rule.
+Attribute the vessel's annual CO2 to countries under each allocation rule.
 
 This section covers workflow steps 5, 9, and 10. International emissions are identified at the **voyage** level: a voyage between ports in different countries is international, and only its attributed emissions enter national allocation. Annual international emissions are then aggregated by flag, registered owner, ISM manager, and commercial-manager-as-operator-proxy country. The EEZ >95%-of-hours rule is retained as a vessel-level diagnostic, not as the allocation gate. The bunker-fuel-sales option remains a documented fleet-scale extension, not a two-vessel output, because individual refuelling locations are unavailable.
 
@@ -636,16 +640,16 @@ At n = 2 this reduces to assigning each vessel's **international** total to one 
 
 Following Option 2 of the Fourth IMO GHG Study (2020), a voyage is domestic when its departure and arrival ports are in the same country, and international when they are in different countries. Consecutive GFW port calls form the voyage sequence. Each hourly emission is assigned the label of the interval from the previous port call's end through the current destination call's end: this includes the sea passage and assigns the destination port call's auxiliary/boiler emissions to the voyage that preceded it. Only hours labelled international enter `international_emissions_year` and the subsequent national-allocation tables.
 
-Hours before the first complete leg, after the last complete leg, or linked to a port call with no country cannot be labelled directly. Within each vessel-year, their CO2 is apportioned using the international share of **labelled modelled hours**, rather than the share of labelled CO2. This implements the IMO study's allocation of unassigned year-boundary time by the vessel's international/domestic shipping split while keeping the split activity-based. `international_voyage_diagnostics.csv` reports the labelled and boundary/unknown hours so this assumption is visible.
+Hours before the first complete leg, after the last complete leg, or linked to a port call with no country cannot be labelled directly. Within each vessel-year, their CO2 is apportioned using the international share of **labelled CO2**, which is dimensionally consistent with the emissions being split. The labelled hour share remains a diagnostic. `international_voyage_diagnostics.csv` reports both shares and the boundary/unknown hours so this assumption is visible.
 
 This reproduces the IMO allocation *definition*, but not its port-detection algorithm. The IMO study derives port stops from raw high-frequency AIS speed, distance-to-nearest-port and area-specific stop criteria. This project instead uses GFW's confidence-filtered port-visit events, which are already inferred from AIS and may include anchorage, canal or waiting events. Consecutive calls are retained because they are also needed for the fuel model; port-call sequence and implausible-leg checks are reported as QA. Results should therefore be described as a GFW-event implementation of IMO Option 2, not a literal reproduction of the IMO stop-identification procedure.
 
-The former EEZ test remains a diagnostic: assign vessel-hours to EEZ v12 (285 polygons, EPSG:4326), excluding inactive and high-seas hours from its denominator. A vessel is domestic only if >95% of its in-EEZ hours fall inside one country's EEZ; otherwise it is international. It no longer determines whether the vessel's entire annual CO2 is allocated.
+The former EEZ test remains a diagnostic: assign active vessel-hours to EEZ v12 (285 polygons, EPSG:4326). Following Selin et al., a vessel is domestic only if >95% of all active AIS signals fall inside one country's EEZ; high-seas signals remain in the denominator. It no longer determines whether the vessel's entire annual CO2 is allocated.
 
 ⚠ EEZ v12 contains 21 joint-regime and 35 overlapping-claim polygons. `ISO_SOV1` is never null (unlike GFW's own layer), so the default is to assign to `ISO_SOV1` and report affected hours separately. The affected hours are diagnostic only and cannot change the voyage-based allocation.
 
 ### Outputs
-`international_emissions_year`: vessel × year × scenario, in tonnes CO₂, including direct and boundary-split diagnostics. `allocation`: country × year × option × scenario, in tonnes CO₂ from international voyages only.
+`international_emissions_year`: vessel × year × scenario, in tonnes CO2, including direct and boundary-split diagnostics. `allocation`: country × year × option × scenario, in tonnes CO2 from international voyages only.
 
 ***
 
@@ -654,31 +658,31 @@ The former EEZ test remains a diagnostic: assign vessel-hours to EEZ v12 (285 po
 ### Purpose
 Establish the national baseline against which allocated emissions are measured.
 
-Use national fossil CO₂ emissions excluding land-use change as the denominator, apply the territory alignment in Selin et al.'s supplementary Table 1, and retain an EU27 aggregate for fleet-scale comparability. The baseline is Global Carbon Budget 2025; its territorial-emissions data are in MtC and must be converted to MtCO₂ before impact calculation.
+Use national fossil CO2 emissions excluding land-use change as the denominator, apply the territory alignment in Selin et al.'s supplementary Table 1, and retain an EU27 aggregate for fleet-scale comparability. The baseline is Global Carbon Budget 2025; its territorial-emissions data are in MtC and must be converted to MtCO2 before impact calculation.
 
 ### Inputs
 Global Carbon Budget 2025, *National Fossil Carbon Emissions v2025*, sheet **Territorial Emissions**, header at row index 11 (0-based). Wide layout: rows are years 1850–2024, columns are 232 countries.
 
 ### 6.1 Unit conversion
 
-**GCB reports million tonnes of carbon, not CO₂.**
+**GCB reports million tonnes of carbon, not CO2.**
 
 ```
-B_c [Mt CO₂] = B_c [Mt C] · 3.664
+B_c [Mt CO2] = B_c [Mt C] · 3.664
 ```
 
 ### 6.2 Bunkers are already excluded
 
 National columns exclude bunker fuels; only the World total includes them. The denominator is therefore clean and there is no double-counting when shipping emissions are added.
 
-A free cross-check comes with it: GCB carries an `International Shipping` column: 170.15 MtC for 2024, i.e. **623 Mt CO₂**: an independent estimate of the global total to sanity-check any fleet-scale result against.
+A free cross-check comes with it: GCB carries an `International Shipping` column: 170.15 MtC for 2024, i.e. **623 Mt CO2**: an independent estimate of the global total to sanity-check any fleet-scale result against.
 
 ### 6.3 Country alignment
 
 Selin et al. merge overseas territories into parent countries and align to the UNFCCC party list, building an EU27 aggregate. The fixed mapping in `config/pilot.yaml` is sourced from their supplementary Table 1; it assigns Hong Kong to China because the published country list has no Hong Kong row. GCB's `Regions` sheet supplies ready-made KP Annex B, OECD and EU27 groupings.
 
 ### Outputs
-`baseline`: country × year × Mt CO₂.
+`baseline`: country × year × Mt CO2.
 
 ***
 
@@ -692,7 +696,7 @@ Join each allocation option to the matching baseline and calculate absolute addi
 ### 7.1 Equations
 
 ```
-ΔE_c        = E_c                                    [Mt CO₂]
+ΔE_c        = E_c                                    [Mt CO2]
 ΔE%_c       = 100 · ΔE_c / B_c                       [%]
 rank_c      = RANK() OVER (PARTITION BY option, scenario ORDER BY ΔE_c DESC)
 share_top20 = Σ_{rank ≤ 20} ΔE_c  /  Σ_c ΔE_c
@@ -704,7 +708,7 @@ Ranking, percent-of-total and concentration shares are window functions over the
 
 Rankings and concentration shares are structurally meaningless at n = 2: the code path exists and is exercised, but the interpretable outputs at this scale are:
 
-* annual and total CO₂, under each of the three power/speed estimates;
+* annual and total CO2, under each of the three power/speed estimates;
 * allocation-rule contrasts against the paper-aligned national baselines;
 * the spread across scenarios as an explicit uncertainty band.
 
@@ -734,7 +738,7 @@ A separate, explicitly non-primary branch tests the Fourth IMO GHG Study 2020 ap
 
 | Check | Basis |
 |---|---|
-| **THETIS-MRV** | The vessel makes 35 EU port calls, so its **verified** annual CO₂ is published. This is genuine external ground truth and the strongest check available. |
+| **THETIS-MRV** | The vessel makes 35 EU port calls, so its **verified** annual CO2 is published. This is genuine external ground truth and the strongest check available. |
 | Hour conservation | Observed hours vs elapsed time, per year. Measured 99.98% for 2024. |
 | Leg-speed plausibility | Great-circle distance between port calls ÷ leg duration should give sensible average speeds. |
 | Port-call/track agreement | Berth periods in the track must coincide with port-visit events. Confirmed on 2024-01-15: the vessel is stationary until 13:00 and the port visit ends 13:32. |
@@ -750,7 +754,6 @@ THETIS-MRV is used **only** to validate, never as an input: it is EU-scope, and 
 | # | Item | Blocks |
 |---|---|---|
 | 2 | Selin et al. supplementary Table 1 (territory merging) | Section 5.4, Section 6.3 |
-| 3 | Coastline layer for distance-to-coast | Section 4.1 |
 | 4 | Sourced installed power and service speed per hull | Section 2.2 estimate C |
 | 5 | Smoothing window validated on more than one day | Section 1.6, Section 8.1 |
 | 6 | Joint-regime / overlapping-claim EEZ rule | Section 5.4 |
@@ -760,7 +763,7 @@ THETIS-MRV is used **only** to validate, never as an input: it is EU-scope, and 
 
 ## Sources
 
-* Selin, H., Zhang, Y., Dunn, R., Selin, N.E., Lau, A.K.H. (2021). Mitigation of CO₂ emissions from international shipping through national allocation. *Environmental Research Letters* 16, 045009. doi:10.1088/1748-9326/abec02
+* Selin, H., Zhang, Y., Dunn, R., Selin, N.E., Lau, A.K.H. (2021). Mitigation of CO2 emissions from international shipping through national allocation. *Environmental Research Letters* 16, 045009. doi:10.1088/1748-9326/abec02
 * IMO (2020). *Fourth IMO Greenhouse Gas Study 2020*: Tables 10, 16, 17, 19, 20, 21; equations 10 and 11.
 * IMO (2021). *2021 Guidelines on the method of calculation of the attained Energy Efficiency Existing Ship Index (EEXI)*, Resolution MEPC.333(76), adopted 17 June 2021: paragraph 2.2.3.5 and Appendix, Tables of parameters for `V_ref,avg` and `MCR_avg`. Primary source; consulted directly. https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MEPCDocuments/MEPC.333(76).pdf
 * Sun, R., Abouarghoub, W., Demir, E., Potter, A. (2026). Impact of imputation methods for ship technical parameters on emission estimations in ports. *Maritime Policy & Management* 53(1), 70–92.

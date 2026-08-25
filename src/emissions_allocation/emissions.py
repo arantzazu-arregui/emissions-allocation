@@ -196,6 +196,39 @@ def register_distance_layers(db: Database, cfg: Config, spine: pd.DataFrame) -> 
         cfg.spatial_layer("coastline"),
         inner=cfg.spatial_inner("coastline"),
     )
+    coast_count, coast_geom_type = db.query(
+        "SELECT count(*), any_value(ST_GeometryType(geom)) FROM coastline_union"
+    ).fetchone()
+    if "POLYGON" not in str(coast_geom_type).upper():
+        raise ValueError(
+            f"coastline union geometry is {coast_geom_type}, not polygons; "
+            "check spatial.layers.coastline in config/pilot.yaml."
+        )
+    if coast_count != 328:
+        raise ValueError(
+            f"coastline union has {coast_count} features; expected 328 from "
+            "Marine Regions Marine and Land Zones v4."
+        )
+
+    # Marine Regions supplies each country's land merged with its EEZ. Recover
+    # land by removing the matching EEZ polygon before measuring coast distance.
+    db.con.execute("""
+        CREATE OR REPLACE TABLE coast_land AS
+        SELECT
+            u.MRGID_EEZ,
+            ST_Difference(u.geom, e.geom) AS geom
+        FROM coastline_union AS u
+        JOIN eez_polygons AS e ON e.MRGID = u.MRGID_EEZ
+        WHERE NOT ST_IsEmpty(ST_Difference(u.geom, e.geom));
+    """)
+    land_count, land_geom_type = db.query(
+        "SELECT count(*), any_value(ST_GeometryType(geom)) FROM coast_land"
+    ).fetchone()
+    if "POLYGON" not in str(land_geom_type).upper() or land_count != 253:
+        raise ValueError(
+            "coastline union did not yield the expected 253 non-empty land polygons; "
+            f"got {land_count} {land_geom_type}."
+        )
 
     # §4.1 At berth / Anchored: a port-visit interval is a stronger signal than
     # distance to an anchorage point. Built once, reused by every scenario.

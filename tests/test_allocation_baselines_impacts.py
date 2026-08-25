@@ -11,6 +11,7 @@ from emissions_allocation import baselines, impacts
 from emissions_allocation.allocation import (
     ALLOCATION_OPTIONS,
     allocate,
+    domestic_test,
     international_emissions_year,
     summarise_options,
     vessel_key_table,
@@ -103,6 +104,35 @@ def test_allocation_covers_every_scenario(cfg, synthetic_emissions) -> None:
 def test_allocation_rejects_total_emissions(cfg, synthetic_emissions) -> None:
     with Database() as db, pytest.raises(ValueError, match="international-emissions"):
         allocate(db, cfg, synthetic_emissions.drop(columns=["international_hour_share"]))
+
+
+def test_domestic_test_uses_all_active_signals_and_vessel_disputes(cfg) -> None:
+    """High-seas signals remain in Selin's denominator and disputes are vessel-wide."""
+    timestamps = pd.date_range("2024-01-01", periods=10, freq="h")
+    vessel_hour = pd.DataFrame({
+        "imo": [VESSEL_A] * len(timestamps),
+        "ts": timestamps,
+        "is_inactive": [False] * len(timestamps),
+    })
+    eez_hour = pd.DataFrame({
+        "imo": [VESSEL_A] * len(timestamps),
+        "ts": timestamps,
+        "eez_iso3": ["AAA"] * 4 + ["BBB"] * 2 + [None] * 4,
+        "is_disputed": [False] * 4 + [True] * 2 + [False] * 4,
+    })
+    with Database(spatial=False) as db:
+        db.register_frame("vessel_hour", vessel_hour)
+        db.register_frame("eez_hour", eez_hour)
+        result = domestic_test(db, cfg).iloc[0]
+
+    assert result["dominant_eez_iso3"] == "AAA"
+    assert result["dominant_eez_hours"] == 4
+    assert result["active_hours_total"] == 10
+    assert result["hours_in_any_eez"] == 6
+    assert result["hours_disputed"] == 2
+    assert result["dominant_eez_share"] == pytest.approx(0.4)
+    assert not bool(result["is_domestic"])
+    assert bool(result["is_international"])
 
 
 def test_voyage_allocation_includes_destination_call_and_splits_boundaries(cfg) -> None:

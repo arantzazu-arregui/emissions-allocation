@@ -86,8 +86,9 @@ cached tables, so it opens instantly.
 | **`dominant_eez_iso3`** | ISO3 code of the EEZ containing the most vessel-hours for a vessel in the domestic/international test. |
 | **`dominant_eez_hours`** | Number of vessel-hours within `dominant_eez_iso3`. |
 | **`hours_in_any_eez`** | Number of vessel-hours assigned to any EEZ in the domestic/international test. |
+| **`active_hours_total`** | All non-inactive vessel-hours in the domestic/international test, including high-seas hours. |
 | **`hours_disputed`** | Vessel-hours in a joint-regime or overlapping EEZ claim, flagged so the territory assignment is visible. |
-| **`dominant_eez_share`** | `dominant_eez_hours / hours_in_any_eez`. A value above 95% classifies the vessel as domestic. |
+| **`dominant_eez_share`** | `dominant_eez_hours / active_hours_total`. A value above 95% classifies the vessel as domestic. |
 | **`is_domestic`** | `True` when `dominant_eez_share` exceeds the 95% domestic threshold. |
 | **`is_international`** | `True` when the vessel is not domestic in the EEZ diagnostic. Allocation instead uses voyage-level port-country labels, so only emissions from international voyages enter the analysis. |
 | **`delta_e_mt_min`** | Smallest national carbon-budget increment, in MtCO₂, across all configured scenarios for a country, year, and allocation option. |

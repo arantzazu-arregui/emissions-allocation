@@ -195,6 +195,8 @@ def test_emission_factor_is_consistent_with_carbon_content(fuel: str) -> None:
 def test_sfc_base_matches_table_19_for_2001_builds() -> None:
     engines = FACTORS["sfc_base"]["engines"]
     assert engines["SSD"] == {"HFO": 175, "MDO": 165}
+    assert engines["MSD"] == {"HFO": 185, "MDO": 175}
+    assert engines["HSD"] == {"HFO": 195, "MDO": 185}
     assert engines["auxiliary_engine"]["HFO"] == 195
     assert engines["auxiliary_engine"]["MDO"] == 185
     assert engines["boiler"]["HFO"] == 340
@@ -203,7 +205,7 @@ def test_sfc_base_matches_table_19_for_2001_builds() -> None:
 
 def test_distillate_burns_less_than_residual_per_kwh() -> None:
     engines = FACTORS["sfc_base"]["engines"]
-    for engine in ("SSD", "auxiliary_engine", "boiler"):
+    for engine in ("SSD", "MSD", "HSD", "auxiliary_engine", "boiler"):
         assert engines[engine]["MDO"] < engines[engine]["HFO"]
 
 

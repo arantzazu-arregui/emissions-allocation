@@ -28,15 +28,7 @@
 -- is not used because it accepts only POINT_2D and the CRS-tagged geometry
 -- returned by ST_ClosestPoint cannot be cast to it.
 
-WITH land AS (
-    SELECT
-        u.MRGID_EEZ,
-        ST_Difference(u.geom, e.geom) AS geom
-    FROM coastline_union AS u
-    JOIN eez_polygons    AS e ON e.MRGID = u.MRGID_EEZ
-    WHERE NOT ST_IsEmpty(ST_Difference(u.geom, e.geom))
-),
-nearest AS (
+WITH nearest AS (
     SELECT
         p.lat,
         p.lon,
@@ -46,7 +38,7 @@ nearest AS (
             ST_X(ST_ClosestPoint(l.geom, ST_Point(p.lon, p.lat)))
         ) AS nm
     FROM distinct_position AS p
-    JOIN land AS l
+    JOIN coast_land AS l
       ON ST_DWithin(l.geom, ST_Point(p.lon, p.lat), $prefilter_degrees)
 )
 SELECT lat, lon, min(nm) AS coast_nm

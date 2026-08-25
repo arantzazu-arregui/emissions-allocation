@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 # docstring and METHODOLOGY's "Scope and honest limits".
 ALLOCATION_OPTIONS = ("flag", "owner", "manager", "operator")
 
-# Selin et al.: domestic if more than 95% of hours lie in a single country's EEZ.
+# Selin et al.: domestic if more than 95% of all active signals lie in one EEZ.
 DOMESTIC_THRESHOLD = 0.95
 
 
@@ -134,6 +134,8 @@ def international_emissions_year(
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:
     """§5.4 -- domestic if more than 95% of hours lie in a single country's EEZ.
+
+    High-seas signals remain in the denominator, following Selin et al.
 
     Expects ``eez_hour`` and ``vessel_hour`` to be registered.
 
