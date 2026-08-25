@@ -1,4 +1,4 @@
--- §3.1 -- fuel assignment at vessel-hour grain.
+-- §5.1 -- fuel assignment at vessel-hour grain.
 --
 -- Following Selin et al., a vessel-hour burns DISTILLATE (MDO/MGO) when ANY of
 -- three conditions holds, and RESIDUAL (HFO) otherwise:
@@ -12,7 +12,7 @@
 -- forced. Vessel A has 27 consecutive EU->EU legs across the period, so the rule
 -- genuinely fires rather than being carried for completeness.
 --
--- Note on §3.2: the IMO 2020 sulphur cap moved most of the fleet from HFO to VLSFO
+-- Note on the 2020 sulphur cap: it moved most of the fleet from HFO to VLSFO
 -- on 1 January 2020, but that is IMMATERIAL here. The Fourth GHG Study assigns
 -- low-sulphur HFO the same carbon content and emission factor as HFO (Table 21,
 -- LSHFO 1.0% -> 3.114), so the switch changes SOx, not CO2. No date branch appears

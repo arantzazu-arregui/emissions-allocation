@@ -1,4 +1,4 @@
-"""§5 -- allocation keys and the domestic/international test.
+"""§6 -- allocation keys and the domestic/international test.
 
 Attributes annual CO2 to countries under each allocation rule: flag, owner, manager
 and operator. The fifth option, bunker fuel, is not computable at this scale -- it
@@ -63,13 +63,13 @@ def vessel_key_table(cfg: Config) -> pd.DataFrame:
 
 
 def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.DataFrame:
-    """§5.3 -- attribute ship-year CO2 to countries under each rule.
+    """§6 -- attribute ship-year CO2 to countries under each rule.
 
     Args:
         db: Database with the SQL registered.
         cfg: Loaded configuration.
         emissions_year: ``imo, year, scenario_id, power_estimate,
-            smoothing_window, co2_tonnes`` from §4.
+            smoothing_window, co2_tonnes`` from §5.3.
 
     Returns:
         ``option, country, gcb_name, year, scenario_id, ..., co2_tonnes, co2_mt``
@@ -79,7 +79,7 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
     missing = required - set(emissions_year.columns)
     if missing:
         raise ValueError(
-            "allocation requires international-emissions totals; missing §5.4 "
+            "allocation requires international-emissions totals; missing §6 "
             f"diagnostics: {sorted(missing)}"
         )
     db.register_frame("emissions_year", emissions_year)
@@ -106,7 +106,7 @@ def international_emissions_year(
     voyage_leg : pandas.DataFrame
         Consecutive port-pair legs including country-based international labels.
     coverage : pandas.DataFrame
-        Vessel-year coverage fractions used for the §4.5 correction.
+        Vessel-year coverage fractions used for the §3.4 correction.
     cfg : Config
         Run configuration controlling coverage correction and warning threshold.
 
@@ -120,7 +120,7 @@ def international_emissions_year(
     -----
     A destination port call inherits its preceding voyage's label. Unlabelled
     boundary emissions are apportioned by the labelled international share of
-    modelled hours for that vessel-year.
+    CO2 for that vessel-year; hour shares remain diagnostics only.
     """
     db.register_frame("emissions_hour", emissions_hour)
     db.register_frame("voyage_leg", voyage_leg)
@@ -133,7 +133,7 @@ def international_emissions_year(
 
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:
-    """§5.4 -- domestic if more than 95% of hours lie in a single country's EEZ.
+    """§6 -- domestic if more than 95% of hours lie in a single country's EEZ.
 
     High-seas signals remain in the denominator, following Selin et al.
 

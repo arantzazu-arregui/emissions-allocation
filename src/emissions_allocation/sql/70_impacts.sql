@@ -1,4 +1,4 @@
--- §7.1 -- allocated emissions as additions to national carbon budgets.
+-- §7 -- allocated emissions as additions to national carbon budgets.
 --
 --   dE_c        = E_c                                  [Mt CO2]
 --   dE%_c       = 100 * dE_c / B_c                     [%]

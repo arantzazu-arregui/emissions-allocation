@@ -1,8 +1,8 @@
--- §4.1 -- distance from each position to the nearest port, in nautical miles.
+-- §5.2 -- distance from each position to the nearest port, in nautical miles.
 --
 -- The IMO study represents each port as a single point (its §2.7.1). Here the port
 -- point set is the distinct anchorage coordinates from this vessel's own port-visit
--- events, which is what METHODOLOGY §4.1 specifies -- "distance to port comes from
+-- events, which is what METHODOLOGY §5.2 specifies -- "distance to port comes from
 -- the port-call anchorage coordinates".
 --
 -- That is a deliberate narrowing worth stating: it measures distance to a port the

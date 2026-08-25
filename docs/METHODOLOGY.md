@@ -128,6 +128,8 @@ MCR   = D E^F
 
 For containerships, `B = min(DWT, 80,000)` and `E = min(DWT, 95,000)`. Vessel A consequently uses the capped EEXI values 25.55 kn and 67,912 kW, not the uncapped extrapolation. Estimate A uses `f_ref = 0.75` and exponent 3.
 
+This capped speed is still outside the configured container service-speed envelope of 6.0--24.5 kn, so the fleet-envelope check deliberately returns **FAIL** for Vessel A Estimate A on every validation run. Because `Load ∝ 1 / V_ref³` for fixed observed SOG, the high EEXI reference speed suppresses its inferred main-engine load. That direction is consistent with its THETIS-MRV undershoot (Section 8.3), but neither check establishes causation on its own.
+
 **Estimate B.** This is available only for the container ship. It uses a Froude range of 0.19--0.21, `L_BP = 345 m`, two displacement conventions, and an Admiralty coefficient calibrated from Charchalis (2014) Table 1 (median 482; range 352--593):
 
 ```text
@@ -135,7 +137,7 @@ V   = Fn √(g L_BP) / 0.5144
 MCR = Δ^(2/3) V³ / C_adm
 ```
 
-Its reference-load fraction is provisionally 1.0 because the source table does not resolve the installed-MCR fraction. It is not applied to RCC AMERICA: no vehicle-carrier calibration is configured and the code deliberately raises rather than borrowing container parameters.
+The runnable point scenario uses the midpoint of the Froude-derived speeds (22.62 kn) and the arithmetic mean of the geometric and DWT-ratio displacement estimates (176,711 t and 195,763 t). It yields 78,258 kW; the endpoint combinations remain in the output metadata as a range diagnostic. Its reference-load fraction is provisionally 1.0 because the source table does not resolve the installed-MCR fraction. It is not applied to RCC AMERICA: no vehicle-carrier calibration is configured and the code deliberately raises rather than borrowing container parameters.
 
 **Estimate D.** EPA (2000) estimates rated main-engine horsepower directly from DWT and converts hp to kW. For COSCO ITALY it uses the container relation `0.80 DWT - 749.4`, paired with the midpoint of its configured container Froude-speed range and `f_ref = 0.83`. This is an extrapolation beyond the regression's stated 20,000--70,000 DWT range. For RCC AMERICA it uses the pooled container/RoRo/auto-carrier/reefer relation `0.719 DWT + 2,581`, paired with Estimate A's EEXI vehicle-carrier speed and `f_ref = 0.75`. The latter changes power but does not independently bracket speed.
 
@@ -167,7 +169,7 @@ Fuel-specific factors and post-2001 base SFC values come from the Fourth IMO GHG
 
 ### 5.2 Operating mode
 
-The pipeline implements IMO Table 16 as an ordered SQL decision matrix with `at_berth`, `anchored`, `manoeuvring`, `slow_transit`, and `normal_cruising`. It uses the inclusive speed bands `≤1`, `(1, 3]`, `(3, 5]`, and `>5 kn`, main-engine load above 3 kn, distance to a vessel-visited port, and distance to coast.
+The pipeline implements IMO Table 16 as an ordered SQL decision matrix with `at_berth`, `anchored`, `manoeuvring`, `slow_transit`, and `normal_cruising`. It uses the inclusive speed bands `≤1`, `(1, 3]`, `(3, 5]`, and `>5 kn`, distance to a vessel-visited port, and distance to coast. In the `(3, 5]` and `>5 kn` bands, the Table 16 threshold is `me_load ≤ 0.65` for `slow_transit` and `me_load > 0.65` for `normal_cruising`, except where the higher-priority port/coast rules select `manoeuvring`. The 0.65 threshold is taken directly from IMO Fourth GHG Study 2020 Table 16 (printed p. 66; PDF p. 94).
 
 Distance to port is the nearest start or end anchorage from the vessel's own GFW port-call history. Distance to coast is derived from Marine Regions Marine and Land Zones v4: each land-plus-EEZ polygon is differenced with the matching EEZ v12 polygon, producing 253 non-empty land polygons from 328 source features. The method measures to the territorial-sea baseline rather than a physical shoreline. The pipeline asserts geometry types and feature counts, and fails if the coastline layer cannot be loaded.
 
@@ -269,8 +271,14 @@ Ranks, top-20 concentration, and fleet shares are calculated to exercise the sca
 | `fuel_assignment_<imo>.parquet` | Fuel assignment by hour |
 | `emissions_hour_<imo>.parquet` | Hourly physical model, keyed by scenario |
 | `emissions_year_<imo>.parquet` | Annual ship emissions, observed and counterfactual corrected totals |
+| `gfw_observed_activity_<imo>.parquet` | Archive-wide GFW observed-active/unobserved screen by vessel-year |
+| `imo2020_sog_sensitivity_<imo>.parquet` | Audit of the non-primary port-phase SOG sensitivity |
+| `emissions_hour_imo2020_port_phase_<imo>.parquet` / `emissions_year_imo2020_port_phase_<imo>.parquet` | Non-primary gap-treatment sensitivity outputs |
+| `baseline.parquet` | Global Carbon Budget national baselines for the study period |
 | `international_emissions_year.parquet` | International-voyage totals and boundary-allocation diagnostics |
 | `allocation.parquet` / `impacts.parquet` | Country allocation and carbon-budget increments |
+| `impacts_by_region.parquet` | Allocation impacts aggregated to GCB regions |
+| `scenario_spread.parquet` | Min, median, max, and multiplicative impact spread across scenarios |
 
 ### 8.2 Sensitivity treatment
 
@@ -286,18 +294,25 @@ The validation stage returns PASS, WARN, FAIL, or PENDING rather than silently s
 |---|---|
 | Identity integrity | One configured IMO in every activity series; checksum validation at acquisition |
 | Hour conservation | Observed hours divided by active hours, with low-coverage years flagged |
-| Gap integrity | Every ≥7-day absence must contain no GFW port call |
 | Smoothing | `mean(v³) / mean(v)³` for each window over active hours |
 | Leg speeds | Great-circle port-to-port distance divided by leg duration; implausible anchorage artefacts diagnosed |
 | Port-call agreement | Stationary/maneuvering mode hours compared with GFW port-visit durations |
-| Fleet speed envelope | Where a hull-form envelope is configured; vehicle carriers are unassessed rather than compared with the container range |
-| THETIS-MRV | Conditional external validation only |
+| Fleet speed envelope | Vessel A A fails at 25.55 kn against the configured 6.0--24.5 kn container envelope; vehicle-carrier estimates are unassessed because no vehicle envelope is configured |
+| THETIS-MRV | Modelled EU/EEA scope compared with EMSA-verified CO2 for both configured vessels |
 
-THETIS-MRV is never an emissions input. If a THETIS export is placed in `data/external/thetis/`, the code parses annual verified CO2 and reconstructs EU/EEA MRV scope from GFW calls flagged `atDock`. It compares like with like only: journeys adjacent to an EEA port plus berth time at EEA ports. A missing export, insufficient `atDock` coverage, or no comparable scoped hours produces PENDING. This is the current status in a fresh checkout; no MRV result should be claimed until a usable export and scope reconstruction are present.
+THETIS-MRV is never an emissions input. The checked exports in `data/external/thetis/` are parsed and compared with a reconstructed EU/EEA MRV scope: journeys adjacent to an EEA port plus berth time at EEA ports, using GFW calls flagged `atDock` to exclude anchorage stops. The current validation outputs pass for both vessels:
+
+| IMO | Comparable years | Modelled / verified CO2 at `w=3` | Result |
+|---|---:|---|---|
+| 9516454 | 1 | A = 0.52x; B = 0.99x; D = 1.00x | PASS; D closest |
+| 9277802 | 6 | A = 1.11x; D = 1.05x | PASS; D closest |
+
+Estimate D is within 5% of the EMSA-verified CO2 total on both hulls. The comparison remains conditional on adequate `atDock` coverage and overlapping scoped hours; those conditions are satisfied by the saved exports and current output. Missing inputs still produce PENDING rather than being silently skipped.
 
 ## 9. Limitations and unresolved inputs
 
 - Estimate C remains unavailable for both vessels. A vessel-specific sourced MCR, reference speed, and reference condition would be the strongest power validation input.
+- Vessel A Estimate A has a documented fleet-envelope FAIL: its 25.55 kn EEXI reference speed exceeds the configured 24.5 kn container maximum. This gives an under-loading mechanism consistent with its 0.52x THETIS-MRV ratio and is retained as a failing scenario, not corrected post hoc.
 - Selected GFW products expose processed hourly centroids, not transmitted SOG, navigational status, draught, weather, hull condition, or a vessel-specific speed-power curve.
 - Long no-presence/no-port-call intervals are treated as out of service for the emissions model, while the broader GFW observed-activity screen deliberately does not infer registry status from AIS absence.
 - GFW port events are inferred events and can split or aggregate physical port stays differently from the raw-AIS port-detection algorithm in the Fourth IMO GHG Study.

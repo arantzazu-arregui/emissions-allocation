@@ -1,4 +1,4 @@
--- Scenario table: the sensitivity cross join of METHODOLOGY §8.1.
+-- Scenario table: the sensitivity cross join of METHODOLOGY §8.2.
 --
 -- Every downstream table is scenario-keyed, so the power/speed estimates and the
 -- smoothing-window range propagate through the model without any stage needing to

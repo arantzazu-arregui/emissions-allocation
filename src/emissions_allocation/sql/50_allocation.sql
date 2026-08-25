@@ -1,4 +1,4 @@
--- §5.3 -- allocate ship-year CO2 to countries under each rule.
+-- §6 -- allocate ship-year CO2 to countries under each rule.
 --
 --   E_c,option = SUM over ships of ( E_ship,international * 1[ key_option(ship) = c ] )
 --

@@ -1,12 +1,12 @@
--- §5.4 -- voyage-based international-shipping emissions.
+-- §6 -- voyage-based international-shipping emissions.
 --
 -- Fourth IMO GHG Study 2020 Option 2: a voyage is international when its
 -- departure and arrival ports are in different countries. The destination port
 -- call inherits the preceding voyage label, so each interval runs from departure
 -- through the end of its destination call.
 --
--- Unlabelled boundary hours are apportioned by the labelled international share
--- of modelled hours in the same vessel-year, following the IMO boundary treatment.
+-- Unlabelled boundary CO2 is apportioned by the labelled international CO2 share
+-- in the same vessel-year. Hour shares are retained below as diagnostics only.
 
 WITH labelled AS (
     SELECT e.*, l.is_international

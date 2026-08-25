@@ -1,4 +1,4 @@
--- §6.3 / §7 -- allocation impacts rolled up to the groupings the paper reports.
+-- §7 -- allocation impacts rolled up to the groupings the paper reports.
 --
 -- Selin et al. align to the UNFCCC party list and report KP Annex B, OECD and EU27
 -- aggregates. The Global Carbon Budget's `Regions` sheet supplies exactly those

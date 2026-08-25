@@ -1,9 +1,9 @@
-"""§4 -- operating mode, power demand, SFC correction and CO2.
+"""§5 -- operating mode, power demand, SFC correction and CO2.
 
 Converts the hourly activity series into CO2 mass per hour, summed to ship-year.
 
 **One ordering decision, because the specification is circular on it.** IMO Table 16
-assigns an operating mode from *main-engine load*, while §4.2 zeroes main-engine
+assigns an operating mode from *main-engine load*, while §5.3 zeroes main-engine
 power in the At berth and Anchored *modes*. Load is therefore computed from smoothed
 speed first, used to assign the mode, and only then zeroed where the mode requires
 it. This is consistent because the matrix consults load only above 3 kn, where the
@@ -36,7 +36,7 @@ MODE_TO_TABLE17 = {
     "normal_cruising": "sea",
 }
 
-# §4.2: no main-engine power at berth or at anchor.
+# §5.3: no main-engine power at berth or at anchor.
 MODES_WITHOUT_MAIN_ENGINE = ("at_berth", "anchored")
 
 # Beyond 5 nm Table 16 stops distinguishing, so distances are only computed inside
@@ -58,7 +58,7 @@ def main_engine_load(
 
     ``Load_i = f_ref * (SOG_smoothed / V_ref)^n``, capped at 1.0, where ``f_ref``
     is the documented fraction of rated MCR at the source's reference speed. The
-    cube is why §1.6's smoothing is mandatory rather than cosmetic: cell-centroid
+    cube is why §3.3's smoothing is mandatory rather than cosmetic: cell-centroid
     quantisation makes the raw speed oscillate, and the error does not average out.
     """
     if reference_speed_kn <= 0:
@@ -123,7 +123,7 @@ def build_hour_model(
         estimate.speed_exponent,
     )
 
-    # §4.2: main engine off at berth and at anchor, and below the 7% MCR cutoff.
+    # §5.3: main engine off at berth and at anchor, and below the 7% MCR cutoff.
     # "At engine loads below 7%, fuel consumption and all the emissions derived
     # from the main engine are assumed to be zero."
     running = (
@@ -132,7 +132,7 @@ def build_hour_model(
     )
     out["w_me_kw"] = np.where(running, estimate.mcr_kw * out["me_load"], 0.0)
 
-    # Fuel is assigned per hour in §3; SFC and EF are looked up from it in SQL via
+    # Fuel is assigned per hour in §5.1; SFC and EF are looked up from it in SQL via
     # a join, but the per-hour base values depend on the fuel, so they are resolved
     # here where the fuel column is available.
     return out
@@ -230,7 +230,7 @@ def register_distance_layers(db: Database, cfg: Config, spine: pd.DataFrame) -> 
             f"got {land_count} {land_geom_type}."
         )
 
-    # §4.1 At berth / Anchored: a port-visit interval is a stronger signal than
+    # §5.2 At berth / Anchored: a port-visit interval is a stronger signal than
     # distance to an anchorage point. Built once, reused by every scenario.
     db.table_from("port_visit_hour", "24_port_visit_hour")
 

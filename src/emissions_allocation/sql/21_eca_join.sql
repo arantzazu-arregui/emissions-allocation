@@ -1,4 +1,4 @@
--- §3.1 condition 2 -- is each vessel-hour inside a MARPOL Annex VI ECA?
+-- §5.1 condition 2 -- is each vessel-hour inside a MARPOL Annex VI ECA?
 --
 -- Point-in-polygon against the Regulation 14 (SOx and particulate matter) areas:
 -- six polygons -- Baltic Sea, US Caribbean, North American 1-3, and North Sea.

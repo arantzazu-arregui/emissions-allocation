@@ -1,4 +1,4 @@
--- §4.1 -- IMO Table 16, the operational phase assignment decision matrix.
+-- §5.2 -- IMO Table 16, the operational phase assignment decision matrix.
 -- Fourth IMO GHG Study 2020, printed p.66 / PDF p.94.
 --
 -- Five phases from speed over ground, main-engine load, distance to port and
@@ -11,16 +11,15 @@
 -- * The 'port 1-5 nm' column is footnoted in the source: "Applicable to chemical
 --   tankers, liquified gas tankers, oil tankers and other liquids tankers only",
 --   because liquid tankers are lightered offshore and so can berth within 5 nm of
---   port. docs/METHODOLOGY.md §4.1 reproduces the column WITHOUT that restriction,
---   which would let a container ship count as At berth up to 5 nm out -- 1,300 kW
---   auxiliary instead of 1,800, over a hull that spends a quarter of the period in
---   port. The source is followed here; $is_liquid_tanker gates the column.
+--   port. The methodology records this restriction; $is_liquid_tanker gates the
+--   column so it cannot classify a container or vehicle carrier as at berth up to
+--   5 nm from port.
 --
 -- Speed-band boundaries are inclusive as the source states them -- "1<=",
 -- "1-3 (incl. 3)", "3-5 (incl. 5)", ">5" -- i.e. a clean partition at 1/3/5 kn.
--- METHODOLOGY writes the bands without stating inclusivity.
+-- The methodology records these inclusive bounds.
 --
--- ORDERING NOTE. The matrix takes main-engine LOAD as an input, while §4.2 zeroes
+-- ORDERING NOTE. The matrix takes main-engine LOAD as an input, while §5.3 zeroes
 -- main-engine power in the At berth and Anchored MODES. That is circular as
 -- written. It resolves because the matrix consults load only above 3 kn, where the
 -- mode is never berth or anchored: load is computed from smoothed speed first,
@@ -32,7 +31,7 @@
 -- ONE DOCUMENTED DEPARTURE FROM TABLE 16, at the At berth / Anchored split.
 --
 -- The source separates the two by distance to port because it had no better
--- signal, and METHODOLOGY §4.1 flags that exposure explicitly. We do have a better
+-- signal, and METHODOLOGY §5.2 records the departure explicitly. We do have a better
 -- signal: a GFW port-visit event asserts, from a different endpoint and with a
 -- confidence score, that the vessel was in port between two timestamps.
 --
