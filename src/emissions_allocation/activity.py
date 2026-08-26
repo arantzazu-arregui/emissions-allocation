@@ -52,8 +52,8 @@ EU27 = frozenset({
     "ROU", "SVK", "SVN", "ESP", "SWE",
 })
 
-# The Brexit transition ended on 31 December 2020. This is shared by fuel-leg
-# construction and THETIS-MRV scope reconstruction so "EU port" has one meaning.
+# The Brexit transition ended on 31 December 2020. Fuel-leg construction uses
+# this cutoff so "EU port" has one consistent meaning.
 UK_IN_EU_THROUGH = 2020
 
 

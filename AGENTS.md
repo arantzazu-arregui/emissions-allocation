@@ -119,7 +119,6 @@ Also:
 - **Cepowski & Chorab (2021)** does *not* estimate power. It estimates hull dimensions from DWT, TEU and speed — speed is an **input**. Useful only for the TEU inversion and the fleet envelope.
 - **Charchalis (2014)** publishes no power formula either; its Figure 5 is an image at 1,300 TEU only. Its **Table 1 of 17 ships is usable to calibrate the Admiralty coefficient** — that is what it's for here.
 - **GFW `registryOwners.flag`** returns the vessel's own flag (HKG), contradicting Equasis's Shanghai owner address. It appears to echo the ship flag, not owner domicile. **Do not use it for the owner allocation.**
-- **THETIS-MRV is EU-scope** — validation only, never an input. The project allocates globally.
 - **Bunker-fuel allocation is not computable** at two vessels. It needs national fuel-sales statistics. Out of scope by construction, not by omission.
 
 **Two source-handling rules, each learned the hard way in this project.**
@@ -176,7 +175,7 @@ IMO **9516454** · MMSI 477845600 · callsign VRNE4 · flag HKG · 154,592 GT / 
 
 Allocation keys — registered owner COSCO ITALY SHIPPING LTD (Shanghai, company IMO 4178111); ISM manager SHANGHAI OCEAN SHIPPING CO LTD (5193283); commercial manager COSCO SHIPPING LINES CO LTD (1043944). **All three resolve to China; flag is Hong Kong.**
 
-389 port calls 2017–2024, all confidence 4, continuous every year. 35 EU calls (NLD 9, DEU 10, BEL 9, GRC 6, POL 1) → **THETIS-MRV validation is available**. 27 consecutive EU→EU legs → the EU-port MGO rule genuinely fires. North Sea and North American ECAs both apply. **24.9% of the period is spent in port** (17,427 h), so auxiliary and boiler demand is a large share of total emissions, not a correction term.
+389 port calls 2017–2024, all confidence 4, continuous every year. 35 EU calls (NLD 9, DEU 10, BEL 9, GRC 6, POL 1); 27 consecutive EU→EU legs → the EU-port MGO rule genuinely fires. North Sea and North American ECAs both apply. **24.9% of the period is spent in port** (17,427 h), so auxiliary and boiler demand is a large share of total emissions, not a correction term.
 
 ## Vessel B — not yet selected
 

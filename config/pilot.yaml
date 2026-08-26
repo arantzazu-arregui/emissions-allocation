@@ -47,8 +47,8 @@ vessels:
   # Greece -- where vessel A's collapse to one.
   - imo: "9277802"
     label: B
-    # THETIS-MRV shows this hull reported as HOEGH AMERICA for 2018 and RCC AMERICA
-    # from 2019, so it was renamed inside the study period.
+    # Registry records show this hull was reported as HOEGH AMERICA for 2018 and
+    # RCC AMERICA from 2019, so it was renamed inside the study period.
     #
     # VERIFIED, not assumed: GFW's presence records return "RCC AMERICA" for every
     # year including 2017 and 2018 -- the presence filter matches the vessel's
@@ -283,11 +283,6 @@ territory_alignment:
     Greenland: Denmark
 
 validation:
-  # §8.2. THETIS-MRV is EU-scope and is used ONLY to validate, never as an input.
-  # No export is present; §8 reports PENDING -- UNVERIFIED until one appears.
-  # Export IMO 9516454 from https://mrv.emsa.europa.eu/ to:
-  thetis_mrv: data/external/thetis/
-
   # Figures established from the captured API responses in data/sample/api/.
   # activity.py asserts against these; a mismatch means something upstream moved.
   expected:

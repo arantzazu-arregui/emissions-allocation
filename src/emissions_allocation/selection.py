@@ -197,9 +197,8 @@ def enrich_with_port_calls(
 def shortlist(candidates: Sequence[Candidate], out_path: Path | None = None) -> pd.DataFrame:
     """§0.2 steps 4 and 6: apply criteria 5-6, rank, and write the hand-off table.
 
-    Ranking is by EU port calls then total calls: the EU calls are what unlock
-    THETIS-MRV validation (§8.2), which is the only external ground truth this
-    project has, and vessel A's experience shows it is worth optimising for.
+    Ranking is by EU port calls then total calls so shortlisted vessels meet the
+    configured international-port-call criteria.
 
     The CSV is the hand-off point. **Criterion 7 must be closed in Equasis by hand**
     -- registered-owner country must differ from flag country. Nothing here can

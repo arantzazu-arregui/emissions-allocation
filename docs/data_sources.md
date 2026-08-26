@@ -75,25 +75,6 @@ thousand"** — multiply by 1,000. A footnote block follows a blank line at the 
 file; the parser must stop there. **Fleet-scale use only** — the bunker allocation option is
 not computable at n = 2.
 
-## Validation only — never an input
-
-### EU THETIS-MRV
-
-Verified ship-level annual CO₂ reports. **This is a validation source, not an input, and the
-distinction is not stylistic.** THETIS-MRV is EU-scope — it covers voyages into, out of and
-between EU/EEA ports — while this study allocates emissions globally. Feeding it into the
-model would make the comparison circular and would import an EU boundary into a global
-allocation.
-
-It is the only genuine external ground truth available, so it is worth having. Export the
-vessel's record from [mrv.emsa.europa.eu](https://mrv.emsa.europa.eu/) to
-`data/external/thetis/`. Until one is present, §8 reports **PENDING — UNVERIFIED** rather
-than silently skipping the check.
-
-Note the scopes differ when comparing: the modelled figure should *exceed* the reported one
-for a vessel that also trades outside Europe, as vessel A heavily does (194 of 389 calls in
-China).
-
 ## Handling
 
 `data/external/` is a **read-only input** — downloaded source data, never regenerated.

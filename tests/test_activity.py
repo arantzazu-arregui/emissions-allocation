@@ -338,8 +338,8 @@ def test_port_country_histogram_matches_the_capture(port_calls) -> None:
     assert counts["TWN"] == 46
 
 
-def test_eu_port_calls_unlock_thetis_validation(port_calls) -> None:
-    """35 EU calls, so the vessel's verified annual CO2 is published (§8.2)."""
+def test_eu_port_call_count(port_calls) -> None:
+    """Vessel A has 35 EU port calls for the configured fuel-rule check."""
     eu = port_calls[port_calls["port_iso3"].isin(EU27)]
     assert len(eu) == 35
     assert set(eu["port_iso3"].value_counts().to_dict()) == {"NLD", "DEU", "BEL", "GRC", "POL"}

@@ -128,7 +128,7 @@ MCR   = D E^F
 
 For containerships, `B = min(DWT, 80,000)` and `E = min(DWT, 95,000)`. Vessel A consequently uses the capped EEXI values 25.55 kn and 67,912 kW, not the uncapped extrapolation. Estimate A uses `f_ref = 0.75` and exponent 3.
 
-This capped speed is still outside the configured container service-speed envelope of 6.0--24.5 kn, so the fleet-envelope check deliberately returns **FAIL** for Vessel A Estimate A on every validation run. Because `Load ∝ 1 / V_ref³` for fixed observed SOG, the high EEXI reference speed suppresses its inferred main-engine load. That direction is consistent with its THETIS-MRV undershoot (Section 8.3), but neither check establishes causation on its own.
+This capped speed is still outside the configured container service-speed envelope of 6.0--24.5 kn, so the fleet-envelope check deliberately returns **FAIL** for Vessel A Estimate A on every validation run. Because `Load ∝ 1 / V_ref³` for fixed observed SOG, the high EEXI reference speed suppresses its inferred main-engine load.
 
 **Estimate B.** This is available only for the container ship. It uses a Froude range of 0.19--0.21, `L_BP = 345 m`, two displacement conventions, and an Admiralty coefficient calibrated from Charchalis (2014) Table 1 (median 482; range 352--593):
 
@@ -298,21 +298,10 @@ The validation stage returns PASS, WARN, FAIL, or PENDING rather than silently s
 | Leg speeds | Great-circle port-to-port distance divided by leg duration; implausible anchorage artefacts diagnosed |
 | Port-call agreement | Stationary/maneuvering mode hours compared with GFW port-visit durations |
 | Fleet speed envelope | Vessel A A fails at 25.55 kn against the configured 6.0--24.5 kn container envelope; vehicle-carrier estimates are unassessed because no vehicle envelope is configured |
-| THETIS-MRV | Modelled EU/EEA scope compared with EMSA-verified CO2 for both configured vessels |
-
-THETIS-MRV is never an emissions input. The checked exports in `data/external/thetis/` are parsed and compared with a reconstructed EU/EEA MRV scope: journeys adjacent to an EEA port plus berth time at EEA ports, using GFW calls flagged `atDock` to exclude anchorage stops. The current validation outputs pass for both vessels:
-
-| IMO | Comparable years | Modelled / verified CO2 at `w=3` | Result |
-|---|---:|---|---|
-| 9516454 | 1 | A = 0.52x; B = 0.99x; D = 1.00x | PASS; D closest |
-| 9277802 | 6 | A = 1.11x; D = 1.05x | PASS; D closest |
-
-Estimate D is within 5% of the EMSA-verified CO2 total on both hulls. The comparison remains conditional on adequate `atDock` coverage and overlapping scoped hours; those conditions are satisfied by the saved exports and current output. Missing inputs still produce PENDING rather than being silently skipped.
-
 ## 9. Limitations and unresolved inputs
 
 - Estimate C remains unavailable for both vessels. A vessel-specific sourced MCR, reference speed, and reference condition would be the strongest power validation input.
-- Vessel A Estimate A has a documented fleet-envelope FAIL: its 25.55 kn EEXI reference speed exceeds the configured 24.5 kn container maximum. This gives an under-loading mechanism consistent with its 0.52x THETIS-MRV ratio and is retained as a failing scenario, not corrected post hoc.
+- Vessel A Estimate A has a documented fleet-envelope FAIL: its 25.55 kn EEXI reference speed exceeds the configured 24.5 kn container maximum and is retained as a failing scenario, not corrected post hoc.
 - Selected GFW products expose processed hourly centroids, not transmitted SOG, navigational status, draught, weather, hull condition, or a vessel-specific speed-power curve.
 - Long no-presence/no-port-call intervals are treated as out of service for the emissions model, while the broader GFW observed-activity screen deliberately does not infer registry status from AIS absence.
 - GFW port events are inferred events and can split or aggregate physical port stays differently from the raw-AIS port-detection algorithm in the Fourth IMO GHG Study.

@@ -28,7 +28,7 @@ and to make every step generalisable to the full ~44,000-ship international flee
 | `data/raw/presence_english_channel_2024-01-01_2024-01-31.parquet` | 40,471 rows | Columns: `date, flag, hours, lat, lon, vesselIDs`. Grid-cell aggregate; no vessel identity. |
 | `data/raw/tracks_us_socal_2024-01-01_2024-01-31.parquet` | 38,247 rows, 1,544 vessels | Columns include `vesselId, imo, mmsi, callsign, shipName, flag, vesselType, geartype, lat, lon, hours, date, entryTimestamp, exitTimestamp, firstTransmissionDate, lastTransmissionDate`. |
 | `data/sample/gfw_data_sample.xlsx` | Present | 4 sheets; `SpeedProfiles` is not usable (§2.1). |
-| `docs/data_sources.md` | Thin | Names GFW and EU THETIS-MRV only. THETIS-MRV is **EU-scope**, which conflicts with the project's global-datasets-only constraint — it should be demoted to a validation source, not an input. |
+| `docs/data_sources.md` | Thin | Documents the public source datasets and their handling requirements. |
 | `config/`, `src/`, `notebooks/`, `tests/` | Scaffolding only | `src/emissions_allocation/` contains only a docstring. All configuration is hard-coded at the top of `fetch_presence.py`. |
 
 ### 1.2 The single most useful thing already established
@@ -270,13 +270,6 @@ robustness result, not an error.
 | G7 | Speed available only in 7 bins; cell-centroid positions | Medium | Derived-speed series as primary; bin-edge sensitivity analysis |
 | G8 | Port-visit response schema unverified | Medium | Test V4; one live call resolves it |
 | G9 | GFW uses EEZ v11, downloads are v12 | Low | Choose one version and document; handle `iso3 = null` joint regimes explicitly |
-| G10 | THETIS-MRV in `docs/data_sources.md` is EU-scope | Low | Demote to validation source; it is a useful ground-truth check on the pilot's CO₂ estimate if the vessel calls at EU ports |
-
-G10 is worth emphasising as an opportunity: if the pilot vessel calls at EU ports, THETIS-MRV
-publishes its *verified* annual CO₂. That converts the pilot from an unvalidated estimate into a
-benchmarked one — a strong validation result to hand to PhD researchers, provided it is used to
-check the model rather than to feed it.
-
 ---
 
 ## 6. Validation before the production pull
@@ -296,7 +289,6 @@ check the model rather than to feed it.
 
 - Sum of binned hours = derived-track hours (internal consistency of D-i vs D-ii)
 - Port-call sequence implies plausible average leg speeds (great-circle distance ÷ leg duration)
-- Modelled annual CO₂ against THETIS-MRV verified figures, if the vessel is in scope
 - Bin-edge sensitivity: recompute with bin lower edge, midpoint, and upper edge
 
 ---

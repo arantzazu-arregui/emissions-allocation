@@ -10,7 +10,6 @@ COSCO ITALY / IMO 9516454
   calls per year: {'2017': 65, '2018': 53, '2019': 33, '2020': 45, '2021': 48, '2022': 52, '2023': 49, '2024': 44}
   port countries: {'CHN': 194, 'TWN': 46, 'USA': 39, 'VNM': 22, 'EGY': 18, 'KOR': 16, 'DEU': 10, 'MYS': 10, 'NLD': 9, 'BEL': 9, 'GRC': 6, 'GBR': 3, 'CAN': 2, 'ARE': 2, 'RUS': 1, 'SAU': 1, 'POL': 1}
   >>> EU port calls: {'NLD': 9, 'DEU': 10, 'BEL': 9, 'GRC': 6, 'POL': 1}
-  >>> THETIS-MRV validation is AVAILABLE
 
 === B. Does the shipname filter return more than one IMO? ===
   720 records, one month, world extent

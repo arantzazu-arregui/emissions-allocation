@@ -159,8 +159,6 @@ Nothing here is defaulted. Each surfaces as a named error or a PENDING marker.
   only installed-power uncertainty is bracketed.
 - **Estimate B has no calibration for non-container hulls.** `C_adm` comes from 17 container
   ships; it raises for any other hull form rather than extrapolating.
-- **THETIS-MRV** covers vessel A for 2018–2019 only — the hull stopped calling at EU ports
-  after 2019, which GFW port-call data independently confirms. Vessel B is unverified.
 
 ## Attribution
 

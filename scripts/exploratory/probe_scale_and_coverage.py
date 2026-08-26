@@ -2,8 +2,7 @@
 Round 4 probe: the four questions that survive into the production pull.
 
     A  Full port-visit history 2017-2024, paginated.
-       -> Does this vessel call at EU ports? (decides whether THETIS-MRV
-          validation exists at all)
+       -> Does this vessel call at EU ports?
        -> How does /v3/events pagination actually behave?
 
     B  Does `shipname in ("COSCO ITALY")` return MORE THAN ONE IMO at world
@@ -156,8 +155,6 @@ def block_a(t: str) -> None:
     say(f"  calls per year: {dict(sorted(per_year.items()))}")
     say(f"  port countries: {dict(sorted(countries.items(), key=lambda x: -x[1]))}")
     say(f"  >>> EU port calls: {eu_hits if eu_hits else 'NONE'}")
-    say("  >>> THETIS-MRV validation is "
-        + ("AVAILABLE" if eu_hits else "NOT available for this vessel"))
 
 
 # ---------------------------------------------------------------- B ------
