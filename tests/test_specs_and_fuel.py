@@ -1,6 +1,6 @@
-"""§2 specifications and §3 fuel assignment.
+"""§3 specifications and §5 fuel assignment.
 
-The §2 tests pin the implemented estimates to the figures in docs/METHODOLOGY.md §2.2.
+The Section 3 tests pin the implemented estimates to the figures in docs/METHODOLOGY.md.
 Estimate A returns 25.55 kn once MEPC.333(76)'s containership caps are applied. That
 remains above the 24.5 kn observed-fleet maximum and is asserted as a documented
 limitation rather than hidden by an uncapped regression.
@@ -58,7 +58,7 @@ def test_teu_inversion_rejects_nonsense_beam() -> None:
 
 
 def test_vessel_a_lands_in_the_12000_14499_band(vessel, cfg) -> None:
-    """The band whose Table 17 row §4.3 quotes."""
+    """The band used by the Table 17 lookup in Section 4."""
     ship_type, size, unit = specs.size_for_table17(vessel, cfg)
     assert (ship_type, unit) == ("container", "TEU")
     assert 12_000 <= size <= 14_499
@@ -78,7 +78,7 @@ def test_hull_relations_validate_within_a_few_percent(vessel, cfg) -> None:
 def test_both_containership_caps_bind_for_vessel_a(vessel, cfg) -> None:
     """MEPC.333(76) caps the containership capacity parameter twice, differently:
     80,000 DWT for speed and 95,000 DWT for power. Vessel A is 156,610 DWT so both
-    bind, giving the figures docs/METHODOLOGY.md §2.2 states."""
+    bind, giving the figures stated in docs/METHODOLOGY.md Section 3."""
     estimate = specs.estimate_a_eexi(vessel, cfg.defaults, cfg)
     assert estimate.variants["capacity_speed"] == 80_000
     assert estimate.variants["capacity_power"] == 95_000
@@ -98,7 +98,7 @@ def test_uncapped_values_reproduce_the_documented_error(vessel, cfg) -> None:
 
 
 def test_methodology_validation_examples_reproduce(cfg) -> None:
-    """§2.2's own worked examples, as an independent check on the tables."""
+    """Section 3 worked examples, as an independent check on the tables."""
     s, p = cfg.eexi["speed"], cfg.eexi["power"]
     assert s["bulk_carrier"]["A"] * 80_000 ** s["bulk_carrier"]["C"] == pytest.approx(14.46, abs=0.02)
     assert p["bulk_carrier"]["D"] * 80_000 ** p["bulk_carrier"]["F"] == pytest.approx(10_672, rel=0.01)
@@ -117,7 +117,7 @@ def test_cruise_row_uses_gt_not_dwt(cfg) -> None:
 
 
 def test_unmapped_ship_type_raises(cfg) -> None:
-    """§2.4 rule 3: no falling through to a default."""
+    """Section 3: no falling through to a default."""
     with pytest.raises(MissingParameter, match="does not map"):
         cfg.eexi_type("submarine")
 
@@ -192,7 +192,7 @@ def test_estimate_b_sits_inside_the_fleet_envelope(vessel, cfg) -> None:
 
 def test_estimates_agree_on_installed_power_but_not_on_speed(vessel, cfg) -> None:
     """The corrected EEXI power (67,912 kW) sits just below Estimate B's Admiralty
-    range (69,600-85,100 kW) -- close agreement, as §2.2 says.
+    range (69,600-85,100 kW) -- close agreement, as Section 3 says.
 
     But they disagree on DESIGN SPEED, 25.55 against 22.62 kn, and load goes as
     1/V^3. Agreeing on installed power is therefore not enough for the emissions to
@@ -287,7 +287,7 @@ def test_requesting_an_unknown_estimate_raises(vessel, cfg) -> None:
 
 
 def test_pilot_hull_is_not_high_speed(vessel) -> None:
-    """§3.1 condition 1 never fires for a large slow-speed-diesel ship."""
+    """Section 5 condition 1 never fires for a large slow-speed-diesel ship."""
     assert is_high_speed(vessel) is False
 
 
@@ -400,7 +400,7 @@ def test_imo_main_fuel_fallback_rejects_a_tied_group_mode() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §4.1 -- At berth vs Anchored, via port-visit intervals
+# §4 -- At berth vs Anchored, via port-visit intervals
 # ---------------------------------------------------------------------------
 
 

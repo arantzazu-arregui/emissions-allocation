@@ -1,48 +1,57 @@
-# Emissions allocation
+# National allocation of international shipping CO2 emissions
 
-An open-data reconstruction of the vessel-level workflow in Selin et al. (2021),
-*Mitigation of CO2 emissions from international shipping through national
-allocation*. The accompanying final paper is
+An open-data, vessel-level reconstruction of the workflow in Selin et al.
+(2021), *Mitigation of CO2 emissions from international shipping through
+national allocation*. The project follows two vessels from hourly activity
+observations to estimates of international-voyage CO2 emissions, then allocates
+those emissions using flag, registered-owner, ISM-manager, and
+commercial-manager-as-operator-proxy country rules.
+
+The accompanying paper is available in
 [`docs/FinalPaper_ArantzazuArreguiGonzalez.pdf`](docs/FinalPaper_ArantzazuArreguiGonzalez.pdf).
 
-The project demonstrates the full route from hourly vessel activity to national
-allocation of international-voyage CO2. It is a reproducible two-vessel pilot,
-not a global inventory and not evidence for preferring one allocation rule at
-fleet scale.
+## Project overview
 
-## What the pilot does
+This repository is a reproducible two-vessel pilot for 2017–2024, not a global
+shipping inventory or evidence that one allocation rule is preferable at fleet
+scale.
 
-For each configured vessel and year from 2017 through 2024, the pipeline:
+It demonstrates an end-to-end public-data workflow for:
 
-1. obtains hourly Global Fishing Watch (GFW) presence observations and inferred
+1. acquiring hourly Global Fishing Watch (GFW) vessel activity and inferred
    port visits;
-2. derives, smooths, and gap-treats speed over ground;
-3. estimates engine specifications where open registers cannot supply them;
-4. calculates hourly main-engine, auxiliary-engine, and boiler CO2 emissions;
-5. retains emissions on international port-to-port voyages; and
-6. allocates those emissions to flag, registered-owner, ISM-manager, and
-   commercial-manager-as-operator-proxy countries, then compares each total
-   with its Global Carbon Budget national baseline.
+2. deriving, smoothing, and gap-treating speed over ground;
+3. estimating engine specifications when open registers do not provide them;
+4. calculating hourly main-engine, auxiliary-engine, and boiler CO2 emissions;
+5. retaining emissions from international port-to-port voyages; and
+6. allocating those emissions to countries and comparing them with Global
+   Carbon Budget national baselines.
 
-The stable key is the seven-digit IMO number. Ship names, MMSIs, flags, and GFW
-`vesselId` values may change and are never used as the primary key.
+All model data are keyed by the seven-digit IMO number. Vessel names, MMSIs,
+flags, and GFW `vesselId` values may change, so they are not used as primary
+keys.
 
 | Pilot vessel | IMO | Purpose | Allocation countries after territory alignment |
 |---|---:|---|---|
-| COSCO ITALY | 9516454 | Large container vessel with co-located commercial roles | China under all four rules (Hong Kong flag merged into China) |
-| RCC AMERICA | 9277802 | Open-registry vehicle carrier that exposes allocation differences | Bahamas, United Kingdom, and Greece |
+| COSCO ITALY | 9516454 | Large container vessel with co-located commercial roles | China under all four rules; Hong Kong is aligned with China |
+| RCC AMERICA | 9277802 | Vehicle carrier selected to expose allocation differences | Bahamas, United Kingdom, and Greece |
 
-The pilot establishes that public data can support the end-to-end workflow, but
-also quantifies its main limitation: no consistently available open source
-provides vessel-specific installed main-engine power and reference speed. For
-COSCO ITALY, the specification-estimate scenarios yield a 1.92-fold spread in
-total emissions. Obtain those two specifications before using the method for a
-fleet-scale result.
+## Installation and setup
 
-## Run it
+### Code and resources used
 
-Use Python 3.11 and install the repository requirements. A free non-commercial
-GFW token is required for live activity acquisition.
+- **Language:** Python 3.11
+- **Database and spatial processing:** DuckDB with its `spatial` extension
+- **Activity data:** Global Fishing Watch APIs (a free non-commercial token is
+  required for live requests)
+- **Configuration:** YAML files in [`config/`](config/)
+- **Documentation:** [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) is the
+  complete operational guide; [`docs/data_sources.md`](docs/data_sources.md)
+  records data provenance and handling.
+
+### Python packages used
+
+Install the project requirements:
 
 ```powershell
 python -m venv .venv
@@ -51,85 +60,148 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Set `GFW_TOKEN` in `.env`; do not commit that file. Download the documented
-external inputs into `data/external/` before spatial, baseline, and allocation
-stages. `docs/data_sources.md` records the required datasets and their handling.
+The main dependencies are grouped below.
+
+- **Data access and configuration:** `requests`, `pyyaml`
+- **Data manipulation and storage:** `pandas`, `pyarrow`, `openpyxl`
+- **Database and spatial processing:** `duckdb`, `cartopy`
+- **Visualisation:** `matplotlib`
+- **Notebook and testing:** `jupyter`, `nbformat`, `pytest`
+
+Set `GFW_TOKEN` in the local `.env` file and do not commit it. Before executing
+the spatial, baseline, or allocation stages, download the required external
+inputs to `data/external/` as described in
+[`docs/data_sources.md`](docs/data_sources.md).
+
+Run a local environment check without calling the API:
 
 ```powershell
-# Validate configuration, DuckDB setup, and one live activity request.
-python scripts/run_pipeline.py --stage check
-
-# Run the configured workflow in order.
-python scripts/run_pipeline.py --all
-
-# Run an individual, restartable stage.
-python scripts/run_pipeline.py --stage emissions
-
-# Run the test suite.
+python scripts/run_pipeline.py --stage check --offline
 pytest
 ```
 
-API responses are cached under `data/raw/`; intermediate tables are written to
-`data/interim/` and outputs to `data/out/`. These paths are ignored by Git, so
-a partial run can resume without repeating completed requests.
+Remove `--offline` to test a live GFW request. Run the configured workflow, or
+an individual restartable stage, with:
 
-The complete operational workflow, formulas, checks, input schemas,
-stage-to-module mapping, and extension procedure are in
-[`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
-
-## Configuration and implementation
-
-Vessel-specific values are data, not code:
-
-- `config/pilot.yaml` defines the study window, vessels, exact GFW query names,
-  scenario axes, spatial inputs, territory alignment, and validation anchors.
-- `config/vessel_specs.yaml` holds Equasis-derived dimensions, role countries,
-  and any sourced engine specifications with provenance.
-- `config/eexi_parameters.yaml` holds the complete MEPC.333(76) coefficients.
-- `config/emission_factors.yaml` holds the Fourth IMO GHG Study mode, fuel,
-  specific-fuel-consumption, and emission-factor tables.
-
-`scripts/run_pipeline.py` is the entry point. Python modules in
-`src/emissions_allocation/` handle API access, parsing, physical calculations,
-and validation. DuckDB performs spatial joins, range joins, window operations,
-allocation, and reporting through readable SQL in
-`src/emissions_allocation/sql/`.
-
-To scale the pilot, add one checked IMO record and its exact query-name history
-to `pilot.yaml`, add the corresponding technical and allocation data to
-`vessel_specs.yaml`, obtain sourced installed power and reference speed where
-possible, and rerun. Do not replace the IMO key with a name or GFW identifier.
-
-## Scope and known limits
-
-- The computed quantity is CO2 from international voyages only. Domestic-voyage
-  emissions are retained for diagnostics but not allocated.
-- The bunker-fuel-sales option is intentionally absent at vessel scale: national
-  bunker statistics cannot identify where an individual vessel took fuel.
-- Equasis has no operator field. The commercial manager is an explicit operator
-  proxy, and company addresses are used as country keys.
-- GFW presence stores hourly grid-cell centroids, not transmitted AIS SOG.
-  Speed smoothing is therefore a reported sensitivity axis.
-- GFW port calls are inferred events, not raw AIS port detections; their
-  segmentation can differ from a commercial raw-AIS workflow.
-
-## Repository map
-
-```text
-config/                    versioned model and vessel parameters
-data/external/             read-only downloaded inputs
-data/raw/, interim/, out/  cached API data, checkpoints, and derived outputs
-docs/                      methodology, sources, and final paper
-notebooks/                 executable walkthrough and result figures
-scripts/run_pipeline.py    stage runner
-src/emissions_allocation/  pipeline modules and DuckDB SQL
-tests/                     unit, configuration, API-assertion, and model tests
+```powershell
+python scripts/run_pipeline.py --all
+python scripts/run_pipeline.py --stage emissions
 ```
 
-## Sources and attribution
+API responses are cached in `data/raw/`, intermediate tables are written to
+`data/interim/`, and derived outputs are written to `data/out/`. These generated
+directories are ignored by Git, allowing partial runs to resume.
 
-Activity and port calls: [Global Fishing Watch](https://globalfishingwatch.org/).
-Spatial layers: Marine Regions / VLIZ (CC-BY 4.0). National baselines: Global
-Carbon Budget 2025, Friedlingstein et al. The detailed source record, including
-the Fourth IMO GHG Study and Selin et al. supplementary territory mapping, is
-in [`docs/data_sources.md`](docs/data_sources.md).
+## Data
+
+### Source data
+
+| Source | Role in the workflow |
+|---|---|
+| [Global Fishing Watch](https://globalfishingwatch.org/) | Hourly vessel presence, inferred port visits, and vessel identity data |
+| [IMO Fourth Greenhouse Gas Study 2020](https://www.imo.org/en/ourwork/environment/pages/fourth-imogreenhousegasstudy2020.aspx) | Operating modes, auxiliary/boiler assumptions, fuel consumption, and CO2 factors |
+| [Marine Regions / VLIZ](https://www.marineregions.org/) | EEZs, high-seas areas, emission-control areas, and land/EEZ layers |
+| [Global Carbon Budget](https://globalcarbonbudget.org/) | National fossil-carbon-emissions baselines |
+| Selin et al. (2021) supplementary material | Territory alignment used for replication |
+| Equasis and Marine Traffic | Vessel dimensions, technical specifications, and company-role information |
+
+The detailed data record, including dataset versions, citations, licenses, and
+file handling, is maintained in [`docs/data_sources.md`](docs/data_sources.md).
+
+### Data acquisition
+
+GFW requests require `GFW_TOKEN`; raw responses are cached by request under
+`data/raw/gfw_cache/`. External source files are downloaded manually to
+`data/external/`, which is treated as a read-only input directory. The tracked
+`data/sample/api/` directory contains captured API responses used to document
+and test endpoint behaviour.
+
+### Data preprocessing
+
+The pipeline creates a complete hourly vessel record from GFW presence data,
+derives speed over ground from consecutive grid-cell centroids, identifies
+long inactive gaps using port visits, and applies configured centred speed
+smoothing windows. It then constructs port-to-port voyage legs, joins spatial
+context, assigns fuel and operating modes, and calculates emissions for every
+configured specification and smoothing scenario.
+
+See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for formulas, assumptions,
+validation rules, and the treatment of coverage correction.
+
+## Code structure
+
+```text
+├── config/                      Versioned pipeline configuration
+│   ├── pilot.yaml               Study window, vessels, paths, scenarios, and validation settings
+│   ├── vessel_specs.yaml        Vessel specifications, allocation keys, and parameter provenance
+│   ├── eexi_parameters.yaml     EEXI reference-speed and power-estimation coefficients
+│   └── emission_factors.yaml    IMO operating-mode, fuel, SFC, and CO₂-factor tables
+├── data/                        Input, cached, intermediate, output, and sample data
+│   ├── external/                Downloaded, read-only source inputs
+│   ├── raw/                     Cached GFW API responses
+│   ├── interim/                 Restartable pipeline tables
+│   ├── out/                     Derived outputs
+│   └── sample/api/              Tracked captured API responses
+├── docs/                        Project documentation and paper
+│   ├── METHODOLOGY.md           Operational pipeline guide, assumptions, and formulas
+│   ├── data_sources.md          Source provenance, substitutions, and handling requirements
+│   ├── data_requirements.md     Input-data requirements and initial data audit
+│   └── FinalPaper_ArantzazuArreguiGonzalez.pdf  Final project paper
+├── notebooks/                   Executable analysis walkthroughs
+│   ├── 00_pipeline_audit.ipynb  Audit of pipeline inputs and API behaviour
+│   └── 01_methodology_walkthrough.ipynb  End-to-end methodology and results walkthrough
+├── reports/                     Written results and exported figures
+│   └── figures/                 Reproducible diagnostic and result figures
+├── scripts/                     Executable pipeline utilities
+│   ├── run_pipeline.py          Ordered, restartable pipeline entry point
+│   └── exploratory/             API investigation and discovery utilities
+├── src/                         Installable project source code
+│   └── emissions_allocation/    Emissions-allocation Python package
+│       ├── __init__.py          Public package exports and project overview
+│       ├── activity.py          Presence, port visits, hourly spine, and speed treatment
+│       ├── allocation.py        International-voyage and country-allocation logic
+│       ├── baselines.py         Global Carbon Budget baseline preparation
+│       ├── config.py            YAML configuration loading and validation
+│       ├── db.py                DuckDB setup and SQL execution helpers
+│       ├── emissions.py         Operating modes, power demand, and CO₂ calculations
+│       ├── fuel.py              Fuel assignment and emission-factor handling
+│       ├── gfw.py               GFW API client and response assertions
+│       ├── impacts.py           Allocation impacts and regional summaries
+│       ├── selection.py         Candidate-vessel discovery and filtering
+│       ├── specs.py             Vessel-specification and power-estimate scenarios
+│       ├── validate.py          Validation and sensitivity checks
+│       └── sql/                 DuckDB spatial and reporting queries
+├── tests/                       Unit, configuration, API, and model tests
+├── .env.example                 Template for the local GFW API token
+├── requirements.txt             Python package dependencies
+├── README.md                    Project overview, setup, and repository guide
+└── .gitignore                   Git exclusions for secrets, environments, and generated data
+```
+
+## Results and evaluation
+
+The repository includes reproducible diagnostic figures in
+[`reports/figures/`](reports/figures/), covering monthly speed over ground,
+design-speed power estimates, fuel by component, cubic fuel-load factors, and
+annual CO2 by power estimate.
+
+Evaluation is built into the pipeline rather than limited to a final aggregate.
+The `validate` stage checks identity integrity, active-hour coverage, voyage-leg
+speed plausibility, operating-mode assignments, specification estimates, and
+speed-smoothing sensitivity. Emissions, allocation, and impact tables retain
+the full scenario identifier so that uncertainty in installed power, reference
+speed, and speed smoothing is not hidden by selecting a single result.
+
+The central limitation is vessel technical data: consistently sourced installed
+main-engine power and reference speed are not available from one open source.
+For that reason, the pilot reports scenario spread and should not be interpreted
+as a fleet-scale estimate without better specification data.
+
+
+## Acknowledgments and references
+
+This project uses public data and methods from Global Fishing Watch, Marine
+Regions/VLIZ, the International Maritime Organization, the Global Carbon
+Budget, Equasis, Marine Traffic, and Selin et al. (2021). Please consult
+[`docs/data_sources.md`](docs/data_sources.md) for the complete attribution,
+source-version, and redistribution record.

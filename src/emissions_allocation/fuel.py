@@ -1,4 +1,4 @@
-"""§3 -- fuel assignment, emission factors and specific fuel consumption.
+"""§5 -- fuel assignment, emission factors, and specific fuel consumption.
 
 A vessel-hour is assigned distillate fuel (MDO/MGO) when any of three conditions
 holds, and residual fuel (HFO) otherwise: the main engine is high-speed; the position
@@ -28,7 +28,7 @@ from emissions_allocation.db import Database
 
 log = logging.getLogger(__name__)
 
-# IMO Table 19 engine classes. Only HSD triggers §3.1 condition 1.
+# IMO Table 19 engine classes. Only HSD triggers the first Section 5 condition.
 HIGH_SPEED_ENGINE = "HSD"
 
 # Table 19 names the boiler row "Steam Turbines (and boilers)".
@@ -197,7 +197,7 @@ def allocate_and_infill_imo_main_fuel(
 
 
 def is_high_speed(vessel: Vessel) -> bool:
-    """§3.1 condition 1. False for both pilot hulls -- large ships are SSD."""
+    """First Section 5 condition. False for both pilot hulls: they are SSD."""
     return vessel.require_spec("engine_type") == HIGH_SPEED_ENGINE
 
 
@@ -253,7 +253,7 @@ def assert_build_year_in_range(vessel: Vessel, factors: dict[str, Any]) -> None:
 
 
 def assign_fuel(db: Database, cfg: Config, vessel: Vessel):
-    """Assign a fuel to every vessel-hour (§3.1).
+    """Assign a fuel to every vessel-hour (Section 5).
 
     Expects ``vessel_hour``, ``voyage_leg`` and ``eca_polygons`` to be registered.
     Materialises ``eca_hour`` then ``fuel_assignment``.

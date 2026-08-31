@@ -154,7 +154,7 @@ class Database:
 
         Table 17 becomes a range-joinable table of
         ``(ship_type, size_min, size_max, mode, boiler_kw, auxiliary_kw)`` -- the
-        shape §4.3's range join needs.
+        shape Section 5's range join needs.
         """
         rows: list[tuple[Any, ...]] = []
         block = factors.get("auxiliary_boiler_power") or {}
@@ -260,7 +260,7 @@ def find_layer_file(archive: Path) -> str:
     """Locate the single readable geospatial file inside a zip, without extracting.
 
     Refuses to guess when a zip holds more than one candidate. The EEZ v12 archive
-    contains both ``eez_v12.gpkg`` (285 polygons -- what §5.4 needs) and
+    contains both ``eez_v12.gpkg`` (285 polygons -- what Section 2 needs) and
     ``eez_boundaries_v12.gpkg`` (2,349 linestrings). Picking alphabetically would
     silently select the boundaries and every point-in-polygon test would return
     nothing, with no error anywhere.

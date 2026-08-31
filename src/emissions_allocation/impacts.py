@@ -31,14 +31,14 @@ TOP_N = 20
 def compute_impacts(
     db: Database, allocation: pd.DataFrame, baseline: pd.DataFrame
 ) -> pd.DataFrame:
-    """§7.1 -- ``dE``, ``dE%`` and rank, per country per option per scenario."""
+    """§7 -- ``dE``, ``dE%``, and rank per country, option, and scenario."""
     db.register_frame("allocation", allocation)
     db.register_frame("baseline", baseline)
     return db.sql("70_impacts").df()
 
 
 def region_membership(cfg) -> pd.DataFrame:
-    """Country -> region rows from the GCB ``Regions`` sheet (§6.3).
+    """Country-to-region rows from the GCB ``Regions`` sheet (Section 7).
 
     Many-to-many by nature: Greece is EU27, OECD and KP Annex B at once. Names are
     resolved through the territory map first, so a dependent territory joins under
@@ -56,7 +56,7 @@ def region_membership(cfg) -> pd.DataFrame:
 
 def impacts_by_region(db: Database, cfg, allocation: pd.DataFrame,
                       baseline: pd.DataFrame) -> pd.DataFrame:
-    """§6.3 / §7 -- roll impacts up to KP Annex B, OECD, EU27 and the continents.
+    """§7 -- roll impacts up to KP Annex B, OECD, EU27, and continents.
 
     These are the aggregations Selin et al. report. A country belongs to several
     groups at once, so totals must not be summed across groups.
@@ -90,7 +90,7 @@ def concentration_share(impacts: pd.DataFrame, top_n: int = TOP_N) -> pd.DataFra
 
 
 def scenario_spread(impacts: pd.DataFrame) -> pd.DataFrame:
-    """§8.1 -- the uncertainty band across the scenario cross join.
+    """§8 -- the uncertainty band across the scenario cross join.
 
     The spread between power/speed estimates is a reported output, not an error to
     be resolved: no free source supplies installed power or design speed, so there

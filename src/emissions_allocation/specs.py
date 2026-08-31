@@ -1,4 +1,4 @@
-"""§2 -- ship specifications: TEU inversion and power/speed estimates.
+"""§3 -- ship specifications and power/speed estimates.
 
 The central data constraint of this replication. Selin et al. used IHS World Register
 of Shipping, a paid commercial register, for installed power and design speed. The
@@ -373,7 +373,7 @@ def estimate_c_sourced(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimat
     speed = vessel.require_spec(
         "power_C_design_speed_kn",
         because=(
-            "Estimate C is a SOURCED specification (docs/METHODOLOGY.md §2.2, open "
+            "Estimate C is a sourced specification (docs/METHODOLOGY.md Section 3, open "
             "item 4). Fill in vessel_specs.yaml vessels.<imo>.power_estimates.C from "
             "shipbuilder or class-society records, or drop 'C' from "
             "config/pilot.yaml run.power_estimates."

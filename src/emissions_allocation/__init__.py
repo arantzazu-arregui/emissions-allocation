@@ -6,19 +6,19 @@ built entirely from public data.
 
 The pipeline follows ``docs/METHODOLOGY.md`` section by section:
 
-===== ======================================== =========================
- §     Stage                                    Module
-===== ======================================== =========================
- 0     Select vessels                           :mod:`selection`
- 1     Obtain ship activity data                :mod:`activity`
- 2     Ship specifications and parameters       :mod:`specs`
- 3     Fuel type and emission factors           :mod:`fuel`
- 4     Calculate CO2 emissions                  :mod:`emissions`
- 5     Allocate to countries                    :mod:`allocation`
- 6     Compare with carbon budgets              :mod:`baselines`
- 7     Compute allocation impacts               :mod:`impacts`
- 8     Sensitivity and validation               :mod:`validate`
-===== ======================================== =========================
+===== =============================================== =============================
+ §     Methodology step                               Module
+===== =============================================== =============================
+ 0     Prepare a run and optionally select a vessel   :mod:`selection`
+ 1     Ingest and preprocess AIS activity             :mod:`activity`
+ 2     Consolidate ship movement                      :mod:`activity` and SQL
+ 3     Acquire ship specifications                    :mod:`specs`
+ 4     Estimate hourly engine power demand             :mod:`emissions`
+ 5     Assign fuel and calculate CO2                  :mod:`fuel`, :mod:`emissions`
+ 6     Allocate international-voyage emissions        :mod:`allocation`
+ 7     Compute allocation impacts                     :mod:`baselines`, :mod:`impacts`
+ 8     Validate, inspect, and extend                  :mod:`validate`
+===== =============================================== =============================
 
 Python owns API access, parsing and the physical model; DuckDB owns spatial joins,
 aggregation, allocation and reporting.

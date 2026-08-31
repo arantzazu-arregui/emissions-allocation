@@ -29,7 +29,7 @@ FACTORS = yaml.safe_load(
 
 
 # ---------------------------------------------------------------------------
-# §4.4 -- IMO equation (10), the main-engine load correction
+# §5 -- IMO equation (10), the main-engine load correction
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +87,7 @@ def test_correction_near_unity_at_the_optimum() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §3.5 / §4.2 -- cutoffs
+# §§4–5 -- cutoffs
 # ---------------------------------------------------------------------------
 
 
@@ -119,7 +119,7 @@ def test_speed_exponent_is_configurable_per_reference_curve() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §6.1 -- unit conversions
+# §7 -- unit conversions
 # ---------------------------------------------------------------------------
 
 
@@ -132,12 +132,12 @@ def test_mtc_to_mtco2_matches_the_molar_mass_ratio() -> None:
 
 
 def test_hong_kong_baseline_conversion() -> None:
-    """§6.4: 9.09 MtC -> 33.3 MtCO2."""
+    """Section 7: 9.09 MtC -> 33.3 MtCO2."""
     assert 9.09 * 3.664 == pytest.approx(33.3, abs=0.05)
 
 
 def test_china_baseline_conversion() -> None:
-    """§6.4: 3,354 MtC -> 12,289 MtCO2."""
+    """Section 7: 3,354 MtC -> 12,289 MtCO2."""
     assert 3354 * 3.664 == pytest.approx(12289, rel=0.001)
 
 
@@ -147,7 +147,7 @@ def test_hong_kong_china_baselines_differ_by_about_370x() -> None:
 
 
 def test_international_shipping_cross_check() -> None:
-    """§6.2: GCB's 170.15 MtC for 2024 -> 623 MtCO2."""
+    """Section 7: GCB's 170.15 MtC for 2024 -> 623 MtCO2."""
     assert 170.15 * 3.664 == pytest.approx(623, abs=1.0)
 
 
@@ -159,7 +159,7 @@ def test_undata_thousand_tonnes_to_tonnes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §3.3 -- Table 21 emission factors
+# §5 -- Table 21 emission factors
 # ---------------------------------------------------------------------------
 
 
@@ -172,7 +172,7 @@ def test_emission_factors_match_table_21() -> None:
 
 
 def test_low_sulphur_hfo_carries_the_same_factor_as_hfo() -> None:
-    """§3.2: the IMO 2020 sulphur cap is immaterial to CO2."""
+    """Section 5: the IMO 2020 sulphur cap is immaterial to CO2."""
     fuels = FACTORS["emission_factors"]["fuels"]
     assert fuels["LSHFO_1.0"]["ef_f"] == fuels["HFO"]["ef_f"]
     assert fuels["LSHFO_1.0"]["carbon_content"] == fuels["HFO"]["carbon_content"]
@@ -188,7 +188,7 @@ def test_emission_factor_is_consistent_with_carbon_content(fuel: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# §3.4 -- Table 19 base SFC
+# §5 -- Table 19 base SFC
 # ---------------------------------------------------------------------------
 
 
@@ -210,7 +210,7 @@ def test_distillate_burns_less_than_residual_per_kwh() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §4.3 -- Table 17
+# §4 -- Table 17
 # ---------------------------------------------------------------------------
 
 
@@ -223,7 +223,7 @@ def _band(ship_type: str, size: float) -> dict:
 
 
 def test_vessel_a_falls_in_the_12000_14499_teu_band() -> None:
-    """13,174 TEU. Values quoted in §4.3."""
+    """13,174 TEU. Values used by the Section 4 Table 17 lookup."""
     band = _band("container", 13174)
     assert (band["min"], band["max"]) == (12000, 14499)
     assert band["boiler"] == [630, 630, 630, 0]
@@ -271,12 +271,12 @@ def test_small_ship_overrides_do_not_apply_to_either_pilot_hull() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §4.1 -- Table 16
+# §4 -- Table 16
 # ---------------------------------------------------------------------------
 
 
 def test_port_1_to_5_column_is_restricted_to_liquid_tankers() -> None:
-    """The footnote docs/METHODOLOGY.md §4.1 drops.
+    """The footnote in docs/METHODOLOGY.md Section 4 drops.
 
     Liquid tankers are often lightered offshore and so can berth within 5 nm of
     port. Applying that column to a container ship would let vessel A be "At berth"

@@ -1,4 +1,4 @@
-"""§6 -- Global Carbon Budget baselines and unit conversion.
+"""§7 -- Global Carbon Budget baselines and unit conversion.
 
 Establishes the national baseline against which allocated emissions are measured.
 
@@ -31,7 +31,7 @@ GCB_SHEET = "Territorial Emissions"
 GCB_HEADER_ROW = 11
 GCB_REGIONS_SHEET = "Regions"
 
-# Carried for the §6.2 cross-check rather than as an input.
+# Carried for the Section 7 cross-check rather than as an input.
 SHIPPING_COLUMN = "International Shipping"
 WORLD_COLUMN = "World"
 
@@ -95,7 +95,7 @@ def national_baseline(baselines: pd.DataFrame, country: str, year: int) -> float
 
 
 def shipping_cross_check(cfg: Config, year: int) -> dict[str, float]:
-    """§6.2 -- the GCB's own International Shipping figure.
+    """Section 7 cross-check using the GCB International Shipping figure.
 
     An independent estimate of the global total to sanity-check any fleet-scale
     result against. 170.15 MtC for 2024, i.e. 623 Mt CO2. Not an input.

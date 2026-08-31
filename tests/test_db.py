@@ -62,7 +62,7 @@ def test_spatial_extension_loads(db) -> None:
 
 
 def test_spheroid_distance_is_available(db) -> None:
-    """§4.1 needs metre distances for the 1 nm and 5 nm thresholds."""
+    """Section 4 needs metre distances for the 1 nm and 5 nm thresholds."""
     metres = db.query(
         "SELECT ST_Distance_Spheroid(ST_Point(0, 0), ST_Point(0, 1)) AS d"
     ).fetchone()[0]
@@ -77,7 +77,7 @@ def test_vsizip_builds_a_gdal_virtual_path(cfg) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scenario cross join -- §8.1
+# Scenario cross join -- §0.2
 # ---------------------------------------------------------------------------
 
 
@@ -118,7 +118,7 @@ def test_scenario_ids_are_unique(db) -> None:
 
 
 def test_table17_is_range_joinable(db) -> None:
-    """§4.3 joins on the TEU band, so bands must be queryable as ranges."""
+    """Section 4 joins on the TEU band, so bands must be queryable as ranges."""
     row = db.query("""
         SELECT boiler_kw, auxiliary_kw
         FROM imo_table17

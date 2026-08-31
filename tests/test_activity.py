@@ -1,4 +1,4 @@
-"""§1 -- speed derivation, smoothing, the hourly spine and port-visit parsing.
+"""§§1–2 -- AIS preprocessing, port visits, and voyage construction.
 
 Fixtures are the captured responses in ``data/sample/api/``, so the parsers are
 tested against the payload GFW actually returns -- including its casing traps
@@ -175,7 +175,7 @@ def test_smoothing_preserves_series_endpoints() -> None:
 
 
 def test_smoothing_damps_the_observed_oscillation() -> None:
-    """3.36 to 21.63 kn while cruising steadily at ~15 kn, from §1.6."""
+    """3.36 to 21.63 kn while cruising steadily at ~15 kn, from Section 1.2."""
     oscillating = pd.Series([3.36, 21.63, 4.10, 19.80, 5.20, 21.00, 15.0])
     assert smooth_speed(oscillating, 3).std() < oscillating.std()
 
@@ -361,7 +361,7 @@ def test_durations_are_positive_and_finite(port_calls) -> None:
 
 
 def test_median_stay_matches_the_documented_figure(port_calls) -> None:
-    """§4.1 records a median stay of 30.1 hours."""
+    """Captured port-visit records show a median stay of 30.1 hours."""
     assert port_calls["duration_h"].median() == pytest.approx(30.1, abs=1.5)
 
 
@@ -439,7 +439,7 @@ def test_find_gaps_separates_scattered_runs() -> None:
 
 
 def test_short_scattered_gaps_are_not_inactivity() -> None:
-    """2017's pattern: 615 runs, none over 7 days. Correctable by §4.5."""
+    """2017's pattern: 615 runs, none over 7 days. Correctable under Section 5."""
     from emissions_allocation.activity import classify_gaps
 
     spine, windows = classify_gaps(_spine_with_gap(100, 12), pd.DataFrame(), 7)
@@ -488,7 +488,7 @@ def test_gap_error_names_the_likely_cause() -> None:
 
 
 def test_coverage_separates_raw_from_active() -> None:
-    """§4.5's divisor must exclude out-of-service hours, not scale them up."""
+    """Section 5's divisor must exclude out-of-service hours, not scale them up."""
     from emissions_allocation.activity import classify_gaps, coverage_by_year
 
     spine, _ = classify_gaps(_spine_with_gap(100, 24 * 10), pd.DataFrame(), 7)
@@ -551,7 +551,7 @@ def test_imo2020_port_phase_sensitivity_only_replaces_short_gaps() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §8.2 -- leg-speed plausibility and anchorage-segmentation artefacts
+# §8 -- leg-speed plausibility and anchorage-segmentation artefacts
 # ---------------------------------------------------------------------------
 
 

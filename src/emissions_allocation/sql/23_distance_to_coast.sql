@@ -1,9 +1,9 @@
--- §5.2 -- distance from each position to the nearest coast, in nautical miles.
+-- §4 -- distance from each position to the nearest coast, in nautical miles.
 --
 -- OPEN ITEM 3, resolved. Marine Regions "Marine and Land Zones v4" ships as
 -- EEZ_land_union: 328 polygons, each a country's LAND MERGED WITH ITS EEZ. It is
 -- not a coastline layer, so land is recovered by differencing it against the EEZ
--- polygons already loaded for §6:
+-- polygons already loaded for Section 2:
 --
 --     land_c = union_c MINUS eez_c        joined on MRGID_EEZ
 --

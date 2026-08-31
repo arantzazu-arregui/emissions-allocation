@@ -33,11 +33,11 @@ from emissions_allocation.gfw import GFWClient
 
 log = logging.getLogger(__name__)
 
-# §0.1 criterion 7. Open registries where flag routinely differs from owner domicile
+# §0.2 criterion 7. Open registries where flag routinely differs from owner domicile
 # -- the divergence vessel B exists to demonstrate.
 OPEN_REGISTRY_FLAGS = ("PAN", "LBR", "MHL", "MLT", "BHS", "CYP")
 
-# §0.1 criterion 2. The international merchant fleet.
+# §0.2 criterion 2. The international merchant fleet.
 MERCHANT_TYPES = ("cargo",)
 
 MIN_PORT_COUNTRIES = 3      # criterion 5

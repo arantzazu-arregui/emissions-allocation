@@ -163,7 +163,7 @@ def test_lbp_is_marked_estimated(cfg) -> None:
 
 
 def test_engine_type_is_marked_as_assigned(cfg) -> None:
-    """§2.3: assigned from the IMO default, not observed."""
+    """Section 3: assigned from the IMO default, not observed."""
     engine = cfg.vessel(VESSEL_A).spec("engine_type")
     assert engine.value == "SSD"
     assert engine.estimated is True
@@ -205,7 +205,7 @@ def test_missing_parameter_message_refuses_to_default(cfg) -> None:
 
 
 def test_coastline_layer_is_configured(cfg) -> None:
-    """Open item 3, resolved. §4.1 needs distance-to-coast per vessel-hour."""
+    """Open item 3, resolved. Section 4 needs distance-to-coast per vessel-hour."""
     assert cfg.spatial_layer("coastline").exists()
     assert cfg.spatial_inner("coastline").endswith(".shp")
 
@@ -227,7 +227,7 @@ def test_configured_spatial_layers_exist(cfg) -> None:
 
 
 def test_bunker_allocation_is_explicitly_not_computable(cfg) -> None:
-    """§5.1: out of scope by construction, not by omission."""
+    """Section 6: out of scope by construction, not by omission."""
     vessel = cfg.vessel(VESSEL_A)
     assert vessel.allocation_country("bunker") is None
     assert "not computable" in vessel.allocation_keys["bunker"]["method"]
@@ -239,7 +239,7 @@ def test_bunker_allocation_is_explicitly_not_computable(cfg) -> None:
 
 
 def test_vessel_a_allocation_keys_are_degenerate(cfg) -> None:
-    """§5.1: flag is Hong Kong; all three commercial roles resolve to China."""
+    """Section 6: flag is Hong Kong; all three commercial roles resolve to China."""
     vessel = cfg.vessel(VESSEL_A)
     assert vessel.allocation_country("flag") == "HKG"
     assert vessel.allocation_country("owner") == "CHN"
@@ -248,7 +248,7 @@ def test_vessel_a_allocation_keys_are_degenerate(cfg) -> None:
 
 
 def test_operator_is_flagged_as_a_proxy(cfg) -> None:
-    """§5.2: Equasis has no operator field; commercial manager stands in."""
+    """Section 6: Equasis has no operator field; commercial manager stands in."""
     operator = cfg.vessel(VESSEL_A).allocation_keys["operator"]
     assert "PROXY" in operator["method"]
     assert operator["estimated"] is True
@@ -268,7 +268,7 @@ def test_unknown_allocation_option_raises(cfg) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scenario space -- §8.1
+# Scenario space -- Section 0.2
 # ---------------------------------------------------------------------------
 
 

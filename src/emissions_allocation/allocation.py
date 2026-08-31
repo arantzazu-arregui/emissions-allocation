@@ -1,4 +1,4 @@
-"""§6 -- allocation keys and the domestic/international test.
+"""§§2 and 6 -- EEZ diagnostics and national allocation keys.
 
 Attributes annual CO2 to countries under each allocation rule: flag, owner, manager
 and operator. The fifth option, bunker fuel, is not computable at this scale -- it
@@ -69,7 +69,7 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
         db: Database with the SQL registered.
         cfg: Loaded configuration.
         emissions_year: ``imo, year, scenario_id, power_estimate,
-            smoothing_window, co2_tonnes`` from §5.3.
+            smoothing_window, co2_tonnes`` from Section 5.
 
     Returns:
         ``option, country, gcb_name, year, scenario_id, ..., co2_tonnes, co2_mt``
@@ -79,7 +79,7 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
     missing = required - set(emissions_year.columns)
     if missing:
         raise ValueError(
-            "allocation requires international-emissions totals; missing §6 "
+            "allocation requires international-emissions totals; missing Section 6 "
             f"diagnostics: {sorted(missing)}"
         )
     db.register_frame("emissions_year", emissions_year)
@@ -106,7 +106,7 @@ def international_emissions_year(
     voyage_leg : pandas.DataFrame
         Consecutive port-pair legs including country-based international labels.
     coverage : pandas.DataFrame
-        Vessel-year coverage fractions used for the §3.4 correction.
+        Vessel-year coverage fractions used for the Section 5 correction.
     cfg : Config
         Run configuration controlling coverage correction and warning threshold.
 
@@ -133,7 +133,7 @@ def international_emissions_year(
 
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:
-    """§6 -- domestic if more than 95% of hours lie in a single country's EEZ.
+    """§2 -- domestic if more than 95% of hours lie in a single country's EEZ.
 
     High-seas signals remain in the denominator, following Selin et al.
 

@@ -1,4 +1,4 @@
--- §5.3 -- hourly CO2, scenario-keyed.
+-- §5 -- hourly CO2, scenario-keyed.
 --
 -- Joins the operating mode to IMO Table 17 (auxiliary and boiler power by ship type
 -- x size band x mode), applies the Table 19 base SFCs and the equation (10) load
@@ -39,12 +39,12 @@ SELECT
     f.in_eca,
     f.is_eu_eu_leg,
 
-    -- §5.3 main engine
+    -- Section 5 main engine
     m.w_me_kw,
-    -- §5.3 equation (10): SFC_base * (0.455*Load^2 - 0.710*Load + 1.280)
+    -- Section 5 equation (10): SFC_base * (0.455*Load^2 - 0.710*Load + 1.280)
     m.sfc_me_g_kwh,
 
-    -- §5.3 Table 17, by ship type x size band x mode
+    -- Section 5 Table 17, by ship type x size band x mode
     CASE o.auxiliary_method
         WHEN 'zero' THEN 0
         WHEN 'mcr_fraction' THEN $mcr_kw * o.auxiliary_mcr_fraction
@@ -57,7 +57,7 @@ SELECT
     m.sfc_ae_g_kwh,
     m.sfc_bo_g_kwh,
 
-    -- §5.3 fuel and CO2 for this hour
+    -- Section 5 fuel and CO2 for this hour
     m.w_me_kw * m.sfc_me_g_kwh            AS fc_me_g,
     (CASE o.auxiliary_method WHEN 'zero' THEN 0 WHEN 'mcr_fraction' THEN $mcr_kw * o.auxiliary_mcr_fraction ELSE t.auxiliary_kw END) * m.sfc_ae_g_kwh AS fc_ae_g,
     (CASE o.boiler_method WHEN 'zero' THEN 0 ELSE t.boiler_kw END) * m.sfc_bo_g_kwh AS fc_bo_g,

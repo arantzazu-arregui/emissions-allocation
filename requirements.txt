@@ -12,9 +12,3 @@ pytest>=8.0
 jupyter>=1.0
 nbformat>=5.9
 
-# NOT required: geopandas / shapely / pyogrio.
-# Spatial work runs in DuckDB's `spatial` extension, which reads GeoPackage through
-# GDAL -- including from inside a zip via /vsizip/ -- so point-in-polygon and
-# distance operations stay in src/emissions_allocation/sql/*.sql where the
-# architecture decision puts them. The extension is installed by DuckDB itself on
-# first use (see db.Database.ensure_spatial), not by pip.

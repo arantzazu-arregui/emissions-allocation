@@ -97,7 +97,7 @@ def stage_check(cfg, args) -> None:
 
 
 def stage_activity(cfg, args) -> None:
-    """§1 -- presence, port visits, speed derivation and smoothing.
+    """§§1–2 -- presence, SOG derivation, port visits, and voyage legs.
 
     The 8-year presence pull is ~44 s per year per vessel and is cached, so the
     first run costs about six minutes a hull and every rerun is free.
@@ -258,7 +258,7 @@ def _check_expectations(cfg, vessel, port_calls, coverage) -> None:
 
 
 def stage_specs(cfg, args) -> None:
-    """§2 -- TEU inversion and the three power/speed estimates."""
+    """§3 -- ship specifications and the configured power/speed estimates."""
     from emissions_allocation import specs
 
     for vessel in cfg:
@@ -267,7 +267,7 @@ def stage_specs(cfg, args) -> None:
         print(f"  ship type {ship_type}; IMO Table 17 indexed by {unit} = {size:,.0f}"
               + ("  [estimated -- inverted from beam]" if unit == "TEU" else "  [observed]"))
 
-        # §2.1 and the Cepowski & Chorab hull relations are container-specific.
+        # Section 3's beam-to-TEU and Admiralty relations are container-specific.
         if unit == "TEU":
             print("  Cepowski & Chorab DWT relations vs the observed hull:")
             for name, r in specs.validate_hull_relations(vessel, cfg.defaults).items():
@@ -288,7 +288,7 @@ def stage_specs(cfg, args) -> None:
 
 
 def stage_fuel(cfg, args) -> None:
-    """§3 -- ECA point-in-polygon, EU->EU legs, fuel assignment."""
+    """§5 -- ECA point-in-polygon, EU-to-EU legs, and fuel assignment."""
     import pandas as pd
 
     from emissions_allocation import fuel
@@ -340,14 +340,14 @@ def stage_fuel(cfg, args) -> None:
 
 
 def _load_emissions_year(cfg):
-    """Read the §4 output, or explain precisely why it is not there yet."""
+    """Read the Section 5 output, or explain precisely why it is not there yet."""
     import pandas as pd
 
     path = cfg.path("interim") / "emissions_year.parquet"
     if not path.exists():
         raise SystemExit(
-            "§4 has not produced emissions_year.parquet yet.\n"
-            "  §4 is blocked on the coastline layer (OPEN ITEM 3): the Table 16\n"
+            "Section 5 has not produced emissions_year.parquet yet.\n"
+            "  Section 4 is blocked on the coastline layer (OPEN ITEM 3): the Table 16\n"
             "  operating-mode matrix needs distance-to-coast per vessel-hour.\n"
             "  Download Marine and Land Zones v4 from marineregions.org/downloads.php,\n"
             "  put the zip in data/external/marineregions/, and set spatial.coastline\n"
@@ -357,7 +357,7 @@ def _load_emissions_year(cfg):
 
 
 def stage_baselines(cfg, args) -> None:
-    """§6 -- Global Carbon Budget baselines."""
+    """§7 -- Global Carbon Budget baselines."""
     from emissions_allocation import baselines
 
     frame = baselines.build_baselines(cfg)
@@ -369,13 +369,13 @@ def stage_baselines(cfg, args) -> None:
     print("  units converted MtC -> Mt CO2 (x3.664); national columns exclude bunkers")
 
     check = baselines.shipping_cross_check(cfg, 2024)
-    print(f"\n  §6.2 cross-check: GCB International Shipping 2024 = "
+    print(f"\n  Section 7 cross-check: GCB International Shipping 2024 = "
           f"{check['mtc']:.2f} MtC = {check['mtco2']:.0f} Mt CO2")
     print("  (an independent global total to sanity-check a fleet-scale result)")
 
 
 def stage_allocation(cfg, args) -> None:
-    """§5 -- allocate ship-year CO2 to countries under each rule."""
+    """§6 -- allocate ship-year CO2 to countries under each rule."""
     import pandas as pd
 
     from emissions_allocation import activity, allocation as alloc
@@ -401,7 +401,7 @@ def stage_allocation(cfg, args) -> None:
     missing = [path.name for path in required if not path.exists()]
     if missing:
         raise SystemExit(
-            "§5 voyage-based allocation requires completed activity and emissions "
+            "Section 6 voyage-based allocation requires completed activity and emissions "
             f"outputs; missing: {', '.join(missing)}"
         )
 
@@ -438,7 +438,7 @@ def stage_allocation(cfg, args) -> None:
         ignore_index=True,
     )
     with Database() as db:
-        # §5.4 -- EEZ domestic/international diagnostic. The allocation itself
+        # Section 2 EEZ domestic/international diagnostic. The allocation itself
         # uses the port-to-port labels calculated below.
         alloc.register_eez(db, cfg)
         spines = [pd.read_parquet(cfg.path("interim") / f"vessel_hour_{v.imo}.parquet")
@@ -446,7 +446,7 @@ def stage_allocation(cfg, args) -> None:
         db.register_frame("vessel_hour", pd.concat(spines, ignore_index=True))
         db.table_from("eez_hour", "20_eez_join")
         domestic = alloc.domestic_test(db, cfg)
-        print("\n§5.4 international/domestic test:")
+        print("\nSection 2 international/domestic test:")
         for row in domestic.itertuples():
             print(f"  IMO {row.imo}: dominant EEZ {row.dominant_eez_iso3} "
                   f"{row.dominant_eez_share:.1%} of in-EEZ hours -> "
@@ -465,7 +465,7 @@ def stage_allocation(cfg, args) -> None:
         international_hour_share=("international_hour_share", "first"),
     )
     diagnostics.to_csv(cfg.path("out") / "international_voyage_diagnostics.csv", index=False)
-    print("\n§5.4 voyage-based international attribution:")
+    print("\nSection 6 voyage-based international attribution:")
     for row in diagnostics.itertuples():
         print(f"  IMO {row.imo}: {row.international_hour_share:.1%} international "
               f"of labelled hours; {row.unallocated_hours:,} boundary/unknown hours")
@@ -492,7 +492,7 @@ def stage_impacts(cfg, args) -> None:
     print("\n  NOTE ranking and concentration shares are structurally meaningless")
     print("  at n=1 -- the code path is exercised, not interpreted.")
 
-    # §6.3 -- the groupings the paper reports.
+    # Section 7 -- the groupings the paper reports.
     with Database(spatial=False) as db2:
         regional = impacts.impacts_by_region(db2, cfg, allocation, baseline)
     regional.to_parquet(interim / "impacts_by_region.parquet", index=False)
@@ -502,7 +502,7 @@ def stage_impacts(cfg, args) -> None:
         & (regional.region.isin(["OECD", "Non-OECD", "EU27", "KP Annex B", "Non KP Annex B"]))
     ]
     if not headline.empty:
-        print("§6.3 by grouping, 2024, w=3 (Mt CO2):")
+        print("Section 7 by grouping, 2024, w=3 (Mt CO2):")
         pivot = headline.pivot_table(index="region", columns="option",
                                      values="delta_e_mt", aggfunc="sum")
         print(pivot.to_string(float_format=lambda v: f"{v:.4f}"))
@@ -514,7 +514,7 @@ def stage_impacts(cfg, args) -> None:
 
 
 def stage_emissions(cfg, args) -> None:
-    """§4 -- operating mode, power demand, SFC correction and CO2."""
+    """§§4–5 -- operating mode, power demand, SFC correction, and CO2."""
     import pandas as pd
 
     from emissions_allocation import activity, emissions, specs
@@ -534,7 +534,7 @@ def stage_emissions(cfg, args) -> None:
             )
             coverage = activity.coverage_by_year(spine)
 
-            # Allow §4 to resume from a spine written before the optional §1.7
+            # Allow Sections 4–5 to resume from a spine written before the optional
             # sensitivity was introduced.  Rebuilding this deterministic branch
             # here avoids an opaque KeyError after the expensive distance step.
             sensitivity = cfg.run.get("imo2020_sog_sensitivity", {})
@@ -641,7 +641,7 @@ def stage_emissions(cfg, args) -> None:
 
 
 def stage_validate(cfg, args) -> None:
-    """§8 -- sensitivity and validation."""
+    """§8 -- validate, inspect, and extend."""
     import pandas as pd
 
     from emissions_allocation import activity, specs, validate
@@ -672,7 +672,7 @@ def stage_validate(cfg, args) -> None:
         print(f"\n  {counts}")
         if validate.FAIL in counts:
             print("  NOTE the fleet-envelope FAIL is the EXPECTED result for "
-                  "estimate A -- see §2.2.")
+                  "estimate A -- see Section 3.")
 
 
 def stage_select(cfg, args) -> None:
@@ -726,7 +726,7 @@ def _not_yet(name: str):
     """Placeholder for a stage with no handler.
 
     The message lists the handler table rather than a hand-written string, so it
-    cannot drift out of date the way the previous one did -- it went on claiming §4
+    cannot drift out of date the way the previous one did -- it went on claiming Section 4
     was blocked on the coastline layer for eight commits after that stopped being
     true.
     """
@@ -762,7 +762,7 @@ def main() -> None:
     parser.add_argument("--year", type=int, default=2024,
                         help="year used by --stage check (default: 2024)")
     parser.add_argument("--reselect", action="store_true",
-                        help="force §0 discovery even when the vessel list is complete")
+                        help="force Section 0.2 discovery even when the vessel list is complete")
     parser.add_argument("--shortlist", type=int, default=18,
                         help="how many candidates to enrich with port calls (default: 18)")
     parser.add_argument("--offline", action="store_true",

@@ -543,7 +543,7 @@ class GFWClient:
     def presence_day(self, condition: str, day: str) -> list[dict[str, Any]]:
         """One day of hourly presence at world extent under an arbitrary filter.
 
-        Used by §0.2 candidate discovery, which cannot filter on ship name because
+        Used by Section 0.2 candidate discovery, which cannot filter on ship name because
         names are what it is searching for. `condition` is composed by the caller
         and passed as a single AND-joined string -- a second filters[n] parameter
         is silently dropped.

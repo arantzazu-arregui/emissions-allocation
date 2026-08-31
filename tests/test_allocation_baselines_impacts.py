@@ -1,4 +1,4 @@
-"""§5 allocation, §6 baselines and §7 impacts under the paper's country map."""
+"""§§6–7 allocation, baselines, and impacts under the paper's country map."""
 
 from __future__ import annotations
 

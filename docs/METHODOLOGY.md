@@ -1,20 +1,13 @@
 # Methodology: open-data national allocation of shipping CO2
 
-This is the implementation guide for Section 3 of the final paper,
-[A Data Driven Analysis of Global Shipping Emissions](FinalPaper_ArantzazuArreguiGonzalez.pdf).
-It translates the paper's seven-step workflow into executable instructions and
-records the repository components required to run it.
+This is the implementation guide for Section 3 of the final paper,[A Data Driven Analysis of Global Shipping Emissions](FinalPaper_ArantzazuArreguiGonzalez.pdf).
+It translates the paper's seven-step workflow into executable instructions and records the repository components required to run it.
 
-The pipeline reconstructs the vessel-level approach of Selin et al. (2021) with
-public inputs. It calculates CO2 from engine power demand, activity time, and a
-fuel-specific emission factor, then allocates international-voyage emissions to
-countries. The pilot covers 2017-01-01 through 2024-12-31 for COSCO ITALY
-(IMO 9516454) and RCC AMERICA (IMO 9277802). It is a validated demonstration,
-not a fleet-level result.
+The pipeline reconstructs the vessel-level approach of Selin et al. (2021) with public inputs. It calculates CO2 from engine power demand, activity time, and a fuel-specific emission factor, then allocates international-voyage emissions to countries. 
 
-The valid seven-digit IMO number is the immutable join key. Do not key tables,
-caches, or configuration on vessel name, MMSI, flag, or GFW vesselId: these can
-change, and a hull can have several GFW IDs.
+The pilot covers 2017-01-01 through 2024-12-31 for COSCO ITALY (IMO 9516454) and RCC AMERICA (IMO 9277802). It is a validated demonstration, not a fleet-level result.
+
+The valid seven-digit IMO number is the immutable join key. Do not key tables, caches, or configuration on vessel name, MMSI, flag, or GFW vesselId: these can change, and a hull can have several GFW IDs.
 
 ## 0. Prepare the run
 
@@ -22,13 +15,34 @@ change, and a hull can have several GFW IDs.
 
 1. Create the Python 3.11 environment and install requirements.txt.
 2. Put a GFW non-commercial token in local .env as GFW_TOKEN; never commit it.
-3. Download the external inputs listed in [data_sources.md](data_sources.md)
-   into data/external/. Treat that directory as read-only:
-   - Marine Regions World EEZ v12, World High Seas v2, MARPOL Annex VI
-     Regulation 14 ECAs, and Marine and Land Zones v4;
-   - Global Carbon Budget 2025 national-emissions workbook;
-   - Selin et al. supplementary Table 1; and
-   - manual Equasis/public-registry records for each vessel.
+3. Download the required external inputs into `data/external/` using the links
+   below. Keep the filenames shown here: they are the paths configured by the
+   pipeline. Treat this directory as read-only.
+
+   | Destination and required filename | Download | Purpose |
+   |---|---|---|
+   | `marineregions/World_EEZ_v12_20231025_gpkg.zip` | [Marine Regions downloads: World EEZ v12, GeoPackage](https://www.marineregions.org/downloads.php) | EEZ point-in-polygon join. Select **GeoPackage** for World EEZ v12 (2023-10-25). |
+   | `marineregions/World_High_Seas_v2_20241010_gpkg.zip` | [Marine Regions downloads: World High Seas v2, GeoPackage](https://www.marineregions.org/downloads.php) | High-seas reference layer. Select **GeoPackage** for World High Seas v2 (2024-10-10). |
+   | `marineregions/eca_reg14_sox_pm.zip` | [Marine Regions ECA Regulation 14 dataset](https://doi.org/10.14284/397) | MARPOL Annex VI Regulation 14 ECA fuel assignment. Download the shapefile archive. |
+   | `marineregions/EEZ_land_union_v4_202410.zip` | [Marine Regions Marine and Land Zones v4 dataset](https://doi.org/10.14284/698) | Coast-distance proxy. Download the `EEZ_land_union_v4_202410.zip` archive. |
+   | `gcb/National_Fossil_Carbon_Emissions_2025_v0.3.xlsx` | [Global Carbon Budget 2025: National fossil carbon emissions](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Required territorial-emissions baseline. The live download may have a newer revision; use the configured v0.3 file for a reproducible rerun, or update the configuration and methodology together. |
+   | `gcb/Global_Carbon_Budget_2025_v0.6.xlsx` | [Global Carbon Budget 2025: full workbook](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Companion workbook retained with the baseline release. |
+   | `gcb/Global-Carbon-Budget-v2025-Dataset-Descriptions.pdf` | [Global Carbon Budget 2025: dataset descriptions](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Metadata for the two GCB workbooks. |
+   | `imo/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf` | [Fourth IMO GHG Study 2020: full report and annexes (PDF)](https://greenvoyage2050.imo.org/wp-content/uploads/2021/07/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf) | Source report for the emission-factor configuration. |
+
+
+   Also manually retrieve the vessel-specific Equasis/public-register records
+   described in [Section 3](#3-acquire-ship-specifications), using
+   [Equasis](https://www.equasis.org/), and record their values and provenance
+   in `config/vessel_specs.yaml`. These records are not distributed as a
+   reproducible bulk download.
+
+   The following `data/external/` files are optional rather than required for
+   the two-vessel allocation rerun:
+
+   | Destination | Download | Use |
+   |---|---|---|
+   | `undata/UNdata_Export_*_FuelOil.zip` and `undata/UNdata_Export_*_GasOil.zip` | [UNdata Energy Statistics database](https://data.un.org/) | Not used by the pilot. These are inputs only for the future fleet-scale bunker-fuel allocation option. |
 4. Keep API responses in data/raw/, transient tables in data/interim/, and
    derived results in data/out/. These directories are ignored by Git; the API
    cache enables restartable runs.

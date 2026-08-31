@@ -1,4 +1,4 @@
--- §6 -- international versus domestic classification.
+-- §2 -- international versus domestic classification.
 --
 -- Selin et al. classify a ship as DOMESTIC when more than 95% of all active
 -- yearly AIS signals fall inside a single country's EEZ. High-seas signals are

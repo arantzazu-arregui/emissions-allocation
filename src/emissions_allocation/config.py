@@ -272,7 +272,7 @@ class Config:
     def spatial_layer(self, key: str) -> Path:
         """Path to a spatial layer, or raise if it is an unresolved open item.
 
-        ``coastline`` is deliberately absent from the shipped config: §4.1 needs
+        ``coastline`` is deliberately absent from the shipped config: Section 4 needs
         distance-to-coast and no layer has been chosen. Raising here, with the
         download URL, is the ground rule -- no default is substituted.
         """
@@ -280,7 +280,7 @@ class Config:
             raise MissingParameter(
                 f"spatial layer {key!r} is not configured.\n"
                 f"  This is an OPEN ITEM. See docs/METHODOLOGY.md and config/pilot.yaml.\n"
-                f"  For 'coastline': §4.1's operating-mode matrix needs distance-to-coast.\n"
+                f"  For 'coastline': Section 4's operating-mode matrix needs distance-to-coast.\n"
                 f"  The IMO Fourth GHG Study measures it against Natural Earth coastline\n"
                 f"  shapefiles (Table 16, printed p.66). Download a coastline layer, put it\n"
                 f"  in data/external/, and set spatial.coastline in config/pilot.yaml.\n"
@@ -306,7 +306,7 @@ class Config:
     def eexi_type(self, ship_type: str) -> str:
         """Map a ship-type string to one of MEPC.333(76)'s twelve categories.
 
-        §2.4 rule 3: any unmapped type must raise rather than fall through to a
+        Section 3: any unmapped type must raise rather than fall through to a
         default, because a silently wrong category returns a plausible number.
         """
         aliases = self.eexi.get("ship_type_aliases") or {}
@@ -330,7 +330,7 @@ class Config:
     def scenarios(self) -> list[dict[str, Any]]:
         """The sensitivity cross join: power estimate x smoothing window.
 
-        §8.1. Built from config so that estimate C joins automatically the day
+        Section 0.2. Built from config so that estimate C joins automatically the day
         someone fills in a sourced installed power and service speed.
         """
         out = []

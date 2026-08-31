@@ -1,4 +1,4 @@
-"""§3 -- ship activity: presence, port visits, speed derivation and smoothing.
+"""§§1–2 -- AIS activity preprocessing and voyage construction.
 
 Produces a continuous, ordered, hourly position-and-speed series across the study
 period, plus the sequence of port calls that defines the vessel's voyages.
@@ -17,13 +17,11 @@ average out: ``mean(v^3)`` = 2,654 against ``(mean v)^3`` = 1,588, a 1.67x
 overestimate, falling to 1.19x with a 3-hour centred average. The window is carried
 as a sensitivity axis rather than fixed.
 
-Ordering note. §3.3 derives speed from consecutive positions and §3.4 fills gaps by
-nearest-neighbour position and linear speed, but the specification does not say which
-happens first. Doing it the other way round manufactures zeros: nearest-neighbour fill
-holds a position constant across a gap, so a naive derivation reads that as a
-stationary vessel followed by one impossible jump. The order used here is spine ->
-position fill -> derive speed on observed pairs using true elapsed time -> linearly
-interpolate speed across the filled hours.
+Raw SOG is derived from consecutive observed centroids before the hourly spine is
+completed. Deriving it after nearest-neighbour position filling would manufacture
+zeros: held positions across a reception gap look stationary, followed by one
+impossible jump. The completed spine therefore interpolates the already-derived SOG
+linearly and records every infilled value.
 
 Outputs: ``vessel_hour``, ``port_call``, ``voyage_leg``.
 """
@@ -45,7 +43,7 @@ log = logging.getLogger(__name__)
 EARTH_RADIUS_KM = 6371.0088
 KM_PER_NAUTICAL_MILE = 1.852
 
-# §5.1 condition 3 and §3.2 voyage_leg.is_eu_eu.
+# §2 voyage-leg construction and §5 fuel assignment.
 EU27 = frozenset({
     "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU",
     "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT",
@@ -74,7 +72,7 @@ def eu_countries(year: int) -> frozenset[str]:
 
 
 # ---------------------------------------------------------------------------
-# 1.2 / 1.3 -- presence
+# 1.1 -- acquire and validate presence
 # ---------------------------------------------------------------------------
 
 
@@ -86,7 +84,7 @@ def load_presence(
     Every year passes through the three mandatory assertions before it is kept.
     Records carry identity inline, so no identity join is needed -- but ``imo`` is
     not a filterable field, so the filter is on ``shipname`` and the IMO restriction
-    is applied here (§3.1).
+    is applied here (§1.1).
 
     Returns:
         One row per vessel-hour: ``imo, ts, lat, lon, hours``.
@@ -290,7 +288,7 @@ def _resolve_hour_grain(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 1.5 -- derived speed over ground
+# 1.2 -- derive speed over ground
 # ---------------------------------------------------------------------------
 
 
@@ -319,7 +317,8 @@ def derive_speed(frame: pd.DataFrame) -> pd.DataFrame:
 
     ``SOG`` is the IMO's term and the AIS field name, but note the difference in
     provenance: in the Fourth GHG Study it is *transmitted* by the vessel, whereas
-    here it is *derived* from consecutive cell centroids. §3.3 exists because of that.
+    here it is *derived* from consecutive cell centroids. Section 1.2 documents that
+    open-data substitution.
     """
     out = frame.sort_values("ts").reset_index(drop=True).copy()
     dt_hours = out["ts"].diff().dt.total_seconds() / 3600.0
@@ -333,14 +332,14 @@ def derive_speed(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 1.7 -- hourly spine and gap filling
+# 1.2–1.3 -- hourly spine and gap treatment
 # ---------------------------------------------------------------------------
 
 
 def build_spine(
     frame: pd.DataFrame, start: datetime, end: datetime, imo: str
 ) -> pd.DataFrame:
-    """Reindex onto a complete hourly grid, filling gaps per §3.4.
+    """Reindex onto a complete hourly grid, filling gaps per Sections 1.2–1.3.
 
     Position is filled by nearest neighbour in time and speed linearly, following
     the source paper. Every filled hour is flagged.
@@ -370,9 +369,9 @@ def build_spine(
         "lat": nearest["lat"].to_numpy(),
         "lon": nearest["lon"].to_numpy(),
         "hours": exact["hours"].fillna(0.0).to_numpy(),
-        # Linear speed. Doing this after the position fill is deliberate -- deriving
-        # speed from nearest-neighbour positions would read a gap as a stationary
-        # vessel followed by one impossible jump.
+        # The raw speed was derived from observed centroid pairs before reindexing.
+        # Interpolate that series; deriving from nearest-neighbour positions would
+        # read a gap as a stationary vessel followed by one impossible jump.
         "sog_raw": exact["sog_raw"].interpolate(method="linear", limit_direction="both").to_numpy(),
         "is_interpolated": is_interpolated.to_numpy(),
     })
@@ -380,7 +379,7 @@ def build_spine(
 
 
 # ---------------------------------------------------------------------------
-# 1.6 -- smoothing
+# 1.2 -- smooth derived SOG
 # ---------------------------------------------------------------------------
 
 
@@ -625,7 +624,7 @@ def add_imo2020_port_phase_sensitivity(
 
 
 def cubic_bias(sog: pd.Series) -> float:
-    """``mean(v^3) / (mean v)^3`` -- the quantity §3.3 exists to reduce.
+    """``mean(v^3) / (mean v)^3`` -- the quantity Section 1.2 aims to reduce.
 
     Reported per smoothing window so the bias reduction is an output rather than an
     assertion. Measured 1.67x unsmoothed and 1.19x at a 3-hour window.
@@ -697,7 +696,7 @@ def _parse_port_visits(events: Sequence[dict[str, Any]], imo: str) -> pd.DataFra
             "lat": start_anchorage.get("lat"),
             "lon": start_anchorage.get("lon"),
             # A visit can begin at one anchorage and end at another; both are
-            # places the vessel was, so both feed the §5.2 port-distance point set.
+            # places the vessel was, so both feed the Section 4 port-distance point set.
             "end_lat": end_anchorage.get("lat"),
             "end_lon": end_anchorage.get("lon"),
             "at_dock": bool(start_anchorage.get("atDock")),
@@ -771,7 +770,7 @@ def classify_gaps(
     Gap *structure* is what distinguishes them, not gap size:
 
     * Many short scattered runs mean thin reception -- the vessel was trading and
-      hours were missed. A coverage-scaled branch would correct them with §3.4's
+      hours were missed. A coverage-scaled branch would correct them with Section 5's
       ``E / coverage``; the configured primary run instead models interpolated hours.
     * One long contiguous run with **no port calls inside it** means the hull was
       out of service. Scaling those hours up would fabricate voyages: applied to
@@ -861,7 +860,7 @@ def coverage_by_year(frame: pd.DataFrame, db=None) -> pd.DataFrame:
     ``coverage_raw``
         observed / elapsed. Transparency only.
     ``coverage_active``
-        observed / (elapsed - inactive). **This is the §3.4 divisor.** Out-of-service
+        observed / (elapsed - inactive). **This is the Section 5 divisor.** Out-of-service
         hours leave the denominator rather than being scaled up, so a lay-up cannot
         fabricate voyages.
 
