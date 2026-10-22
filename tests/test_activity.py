@@ -1,4 +1,4 @@
-"""§§1–2 -- AIS preprocessing, port visits, and voyage construction.
+"""§§3.1–3.2 -- AIS preprocessing, port visits, and voyage construction.
 
 Fixtures are the captured responses in ``data/sample/api/``, so the parsers are
 tested against the payload GFW actually returns -- including its casing traps
@@ -439,7 +439,7 @@ def test_find_gaps_separates_scattered_runs() -> None:
 
 
 def test_short_scattered_gaps_are_not_inactivity() -> None:
-    """2017's pattern: 615 runs, none over 7 days. Correctable under Section 5."""
+    """2017's pattern: 615 runs, none over 7 days. Correctable under Section 3.1."""
     from emissions_allocation.activity import classify_gaps
 
     spine, windows = classify_gaps(_spine_with_gap(100, 12), pd.DataFrame(), 7)
@@ -488,7 +488,7 @@ def test_gap_error_names_the_likely_cause() -> None:
 
 
 def test_coverage_separates_raw_from_active() -> None:
-    """Section 5's divisor must exclude out-of-service hours, not scale them up."""
+    """Section 3.1 divisor (equation B4) must exclude out-of-service hours, not scale them up."""
     from emissions_allocation.activity import classify_gaps, coverage_by_year
 
     spine, _ = classify_gaps(_spine_with_gap(100, 24 * 10), pd.DataFrame(), 7)
@@ -551,7 +551,7 @@ def test_imo2020_port_phase_sensitivity_only_replaces_short_gaps() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §8 -- leg-speed plausibility and anchorage-segmentation artefacts
+# §4 -- leg-speed plausibility and anchorage-segmentation artefacts
 # ---------------------------------------------------------------------------
 
 

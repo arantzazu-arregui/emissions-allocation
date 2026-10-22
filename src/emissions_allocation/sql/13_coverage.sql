@@ -1,9 +1,9 @@
--- §1.3 -- observed coverage, per vessel per year.
+-- §3.1 -- observed coverage, per vessel per year.
 --
 -- Two coverage figures, and they mean different things:
 --
 --   coverage_raw     observed / elapsed.  Transparency only.
---   coverage_active  observed / (elapsed - inactive).  This is the Section 5 divisor.
+--   coverage_active  observed / (elapsed - inactive).  This is the Section 3.1 divisor (equation B4).
 --
 -- Hours where the hull was out of service are removed from the denominator rather
 -- than scaled up, so a lay-up cannot fabricate voyages. For vessel A's 2019 the two

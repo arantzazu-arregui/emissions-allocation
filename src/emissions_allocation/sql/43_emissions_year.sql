@@ -1,4 +1,4 @@
--- §§1.3 and 5 -- ship-year CO2, with and without the coverage correction.
+-- §§3.1 and 3.5 -- ship-year CO2, with and without the coverage correction.
 --
 --   E_ship,y = SUM_i E_CO2,i          [t / year]
 --

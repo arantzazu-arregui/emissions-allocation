@@ -1,4 +1,4 @@
--- §4 -- IMO Table 16, the operational phase assignment decision matrix.
+-- §3.4 -- IMO Table 16, the operational phase assignment decision matrix.
 -- Fourth IMO GHG Study 2020, printed p.66 / PDF p.94.
 --
 -- Five phases from speed over ground, main-engine load, distance to port and
@@ -19,7 +19,7 @@
 -- "1-3 (incl. 3)", "3-5 (incl. 5)", ">5" -- i.e. a clean partition at 1/3/5 kn.
 -- The methodology records these inclusive bounds.
 --
--- ORDERING NOTE. The matrix takes main-engine LOAD as an input, while Section 4 zeroes
+-- ORDERING NOTE. The matrix takes main-engine LOAD as an input, while Section 3.4 zeroes
 -- main-engine power in the At berth and Anchored MODES. That is circular as
 -- written. It resolves because the matrix consults load only above 3 kn, where the
 -- mode is never berth or anchored: load is computed from smoothed speed first,

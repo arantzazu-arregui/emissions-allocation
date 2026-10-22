@@ -19,7 +19,7 @@
 # =============================================================================
 defaults:
 
-  # --- §2.1 TEU capacity -----------------------------------------------------
+  # --- Paper §3.3 and equation (B6): TEU capacity ----------------------------
   # IMO Table 17 indexes container ships by TEU; Equasis does not carry TEU.
   # Inverted to TEU = (B / coefficient)^(1/exponent).
   teu_from_beam:
@@ -42,13 +42,13 @@ defaults:
     method: validation only
     estimated: true
 
-  # --- §2.2 estimate A -- IMO EEXI curve fit ---------------------------------
+  # --- Paper §3.3.1 estimate A -- IMO EEXI curve fit ----------------------------
   # The active, complete MEPC.333(76) parameter tables are in
   # config/eexi_parameters.yaml. config.py reads that file directly; do not add a
   # second copy here because divergent coefficients, caps, and key names are a
   # silent source of wrong power estimates.
 
-  # --- §4.2 reference-load and speed-power parameters ------------------------
+  # --- Paper §3.4.1 reference-load and speed-power parameters -----------------
   # Every estimate carries its own reference load. V_ref/service speed is normally
   # reached below MCR, so a shared 100%-MCR anchor is physically wrong.
   power_reference:
@@ -81,7 +81,7 @@ defaults:
           source: "IMO Resolution MEPC.333(76), paragraph 2.2.3.5; EPA DWT power regression"
           method: "The D scenario uses Estimate A's EEXI V_ref, so it inherits the EEXI 75%-MCR reference fraction"
 
-  # --- §2.2 estimate B -- Admiralty coefficient, calibrated ------------------
+  # --- Paper §3.3.2 estimate B -- Admiralty coefficient, calibrated -------------
   # V   = Fn * sqrt(g * L_BP) / 0.5144        [knots]
   # MCR = displacement^(2/3) * V^3 / C_adm
   #
@@ -155,7 +155,7 @@ defaults:
       cruise: null
       other_liquids_tanker: null
 
-  # --- §2.2 estimate D -- EPA main-engine-power regression ------------------
+  # --- Paper §3.3.3 estimate D -- EPA main-engine-power regression -------------
   # The source relates DWT directly to rated main-engine horsepower. It is NOT
   # inferred by reversing Table 17 auxiliary operating loads. For a runnable
   # (V_ref, MCR) scenario, D needs a separately configured speed pairing. The
@@ -190,7 +190,7 @@ defaults:
         speed_pairing: eexi
         speed_pairing_note: "MEPC.333(76) vehicle-carrier reference speed; EPA estimates MCR only"
 
-  # --- §8.2 fleet-envelope validation check ----------------------------------
+  # --- Paper §4.2 and Table B1: fleet-envelope validation check ---------------
   # Also hull-form specific: 6.0-24.5 kn is the CONTAINER fleet's range and says
   # nothing about a car carrier. A type with no published envelope returns None
   # (unknown) rather than a spurious pass or fail.
@@ -202,7 +202,7 @@ defaults:
       method: "observed range of service speeds"
       estimated: false
 
-  # --- §2.3 engine type ------------------------------------------------------
+  # --- Paper §3.3: engine type ------------------------------------------------
   default_engine_type:
     value: SSD
     source: "IMO Fourth GHG Study 2020 -- slow-speed diesel is the stated default for any oil-propelled ship not otherwise classifiable; Table 10 gives engine-type shares by year"
@@ -244,7 +244,7 @@ vessels:
       method: "LBP ~ 0.95 * LOA, corroborated by Cepowski & Chorab DWT relation (344.4 m)"
       estimated: true
 
-    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default (§2.3)", method: assigned, estimated: true}
+    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default; final paper §3.3", method: assigned, estimated: true}
 
     # teu is DERIVED at runtime by specs.py from beam_m. Not hand-entered, so that
     # the inversion is exercised rather than asserted. Expected ~13,174.
@@ -269,7 +269,7 @@ vessels:
         design_speed_kn: {value: null, source: null, method: null, estimated: true}
         reference: {value: null, source: null, method: null, estimated: true}
 
-    # --- §5.1 allocation keys ------------------------------------------------
+    # --- Paper §3.6 allocation keys -------------------------------------------
     # Equasis supplies an IMO company identification number per role, which gives
     # the fleet-scale version a stable join key rather than fuzzy name matching.
     #
@@ -302,7 +302,7 @@ vessels:
         source: "Equasis registered owner"
         method: "address-derived"
         estimated: true
-        # CAVEAT (§5.2): Equasis gives an ADDRESS, not a country of incorporation.
+        # CAVEAT (paper §3.6): Equasis gives an ADDRESS, not a country of incorporation.
         # This is a single-purpose company whose place of registration is not
         # stated. Selin et al. used WRS's owner-country field, a different
         # construct.
@@ -326,7 +326,7 @@ vessels:
         source: "Equasis commercial manager"
         method: "PROXY -- Equasis has no operator field"
         estimated: true
-        # CAVEAT (§5.2): this partially collapses the operator and manager
+        # CAVEAT (paper §3.6): this partially collapses the operator and manager
         # options and must be reported as such.
       bunker:
         country: null
@@ -353,11 +353,11 @@ vessels:
     # this hull sits just above the threshold so it does not trigger.
     #
     # LOA, beam, draught and L_BP are NOT recorded. They are inputs to estimate B
-    # and to the §2.1 TEU inversion, neither of which applies to this hull, so
+    # and to the equation (B6) TEU inversion, neither of which applies to this hull, so
     # inventing them would add nothing but risk. Add them if estimate B is ever
     # calibrated for vehicle carriers.
 
-    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default (§2.3)", method: assigned, estimated: true}
+    engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default; final paper §3.3", method: assigned, estimated: true}
 
     power_estimates:
       A: derived
@@ -368,7 +368,7 @@ vessels:
         design_speed_kn: {value: null, source: null, method: null, estimated: true}
         reference: {value: null, source: null, method: null, estimated: true}
 
-    # --- §5.1 allocation keys ------------------------------------------------
+    # --- Paper §3.6 allocation keys -------------------------------------------
     # THREE distinct national budgets, which is the whole point of vessel B.
     # Equasis, 2026-08-16.
     allocation_keys:
@@ -387,7 +387,7 @@ vessels:
         source: "Equasis registered owner, since 01/11/2003"
         method: "address-derived"
         estimated: true
-        # Same §5.2 caveat as vessel A: Equasis gives an ADDRESS, not a country of
+        # Same paper §3.6 caveat as vessel A: Equasis gives an ADDRESS, not a country of
         # incorporation. A single-purpose company c/o its commercial manager.
       manager:
         country: GRC
@@ -414,7 +414,7 @@ vessels:
         estimated: false
 
   # --- Further vessels -----------------------------------------------------
-  # Add the block here once §0.2 and the Equasis lookup are done. Required
+  # Add the block here once vessel selection and the Equasis lookup are done. Required
   # fields mirror vessel A: dwt, beam_m, lbp_m, ship_type, engine_type, and the
   # four allocation_keys. MEPC.333(76) constants live in
   # config/eexi_parameters.yaml; add an explicit power_reference row before a new

@@ -1,4 +1,4 @@
-"""§0 -- candidate discovery and criteria filtering.
+"""Vessel selection (README, Adding a vessel) -- candidate discovery and criteria filtering.
 
 Chooses study vessels by reproducible criteria rather than by hand, so a researcher
 extending this work can apply the same filter to any number of ships.
@@ -33,11 +33,11 @@ from emissions_allocation.gfw import GFWClient
 
 log = logging.getLogger(__name__)
 
-# §0.2 criterion 7. Open registries where flag routinely differs from owner domicile
+# Vessel-selection criterion 7. Open registries where flag routinely differs from owner domicile
 # -- the divergence vessel B exists to demonstrate.
 OPEN_REGISTRY_FLAGS = ("PAN", "LBR", "MHL", "MLT", "BHS", "CYP")
 
-# §0.2 criterion 2. The international merchant fleet.
+# Vessel-selection criterion 2. The international merchant fleet.
 MERCHANT_TYPES = ("cargo",)
 
 MIN_PORT_COUNTRIES = 3      # criterion 5
@@ -77,7 +77,7 @@ def discover_candidates(
     vessel_types: Sequence[str] = MERCHANT_TYPES,
     sample_days: Sequence[str] | None = None,
 ) -> list[Candidate]:
-    """§0.2 steps 1-3: build a candidate pool and apply criteria 1-4.
+    """Vessel-selection steps 1-3: build a candidate pool and apply criteria 1-4.
 
     One presence request per sample day, at world extent, filtered by flag and type.
     A single flag-and-type combination returned 991 distinct vessels for one day in
@@ -195,7 +195,7 @@ def enrich_with_port_calls(
 
 
 def shortlist(candidates: Sequence[Candidate], out_path: Path | None = None) -> pd.DataFrame:
-    """§0.2 steps 4 and 6: apply criteria 5-6, rank, and write the hand-off table.
+    """Vessel-selection steps 4 and 6: apply criteria 5-6, rank, and write the hand-off table.
 
     Ranking is by EU port calls then total calls so shortlisted vessels meet the
     configured international-port-call criteria.

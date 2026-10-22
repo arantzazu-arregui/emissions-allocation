@@ -1,4 +1,4 @@
--- §4 -- mark each vessel-hour that falls inside a GFW port-visit interval.
+-- §3.4 -- mark each vessel-hour that falls inside a GFW port-visit interval.
 --
 -- Table 16 separates "at berth" from "anchored" by DISTANCE TO PORT alone, because
 -- the IMO study had no better signal, and GFW does not expose AIS navigational
@@ -6,7 +6,7 @@
 --
 -- We have a better signal, and it comes from a different endpoint. A GFW port-visit
 -- event states, with a confidence score, that the vessel WAS IN PORT between two
--- timestamps. Using it is analogous to Section 5's use of EU-to-EU legs from
+-- timestamps. Using it is analogous to Section 3.5's use of EU-to-EU legs from
 -- the actual port sequence rather than from an EEZ proxy.
 --
 -- Why the distance test was failing: the port point set is built from anchorage

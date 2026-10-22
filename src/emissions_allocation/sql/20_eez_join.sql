@@ -1,4 +1,4 @@
--- §2 -- assign each vessel-hour to an EEZ.
+-- §3.2 -- assign each vessel-hour to an EEZ.
 --
 -- Point-in-polygon against World EEZ v12: 285 polygons, EPSG:4326. Hours matching
 -- no polygon fall to the high seas, which is most of an international voyage.

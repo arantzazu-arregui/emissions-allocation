@@ -1,4 +1,4 @@
-"""§3 -- ship specifications and power/speed estimates.
+"""§3.3 -- ship specifications and power/speed estimates.
 
 The central data constraint of this replication. Selin et al. used IHS World Register
 of Shipping, a paid commercial register, for installed power and design speed. The

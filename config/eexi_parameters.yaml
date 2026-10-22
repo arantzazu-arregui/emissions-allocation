@@ -58,7 +58,7 @@ power:
   ferry_ropax:         {D:   9.1338, capacity: dwt, F: 0.91116}
   cruise:              {D:   1.3550, capacity: gt,  F: 0.88664}
 
-# --- §2.4 rule 3: ship-type strings must map to these twelve categories -----
+# --- Paper §3.3.1: ship-type strings must map to these twelve categories -----
 # GFW returns coarse types (CARGO, TANKER, CARRIER); Equasis returns finer ones
 # (Container Ship, Bulk Carrier, Vehicles Carrier). The mapping belongs here, and
 # any unmapped type MUST raise rather than fall through to a default.

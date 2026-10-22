@@ -1,6 +1,6 @@
-"""§3 specifications and §5 fuel assignment.
+"""§3.3 specifications and §3.5 fuel assignment.
 
-The Section 3 tests pin the implemented estimates to the figures in the final paper
+The Section 3.3 tests pin the implemented estimates to the figures in the final paper
 (Section 3.3, Table 4, and Section 4.2, Table 10).
 Estimate A returns 25.55 kn once MEPC.333(76)'s containership caps are applied. That
 remains above the 24.5 kn observed-fleet maximum and is asserted as a documented
@@ -99,7 +99,7 @@ def test_uncapped_values_reproduce_the_documented_error(vessel, cfg) -> None:
 
 
 def test_methodology_validation_examples_reproduce(cfg) -> None:
-    """Section 3 worked examples, as an independent check on the tables."""
+    """Section 3.3 worked examples, as an independent check on the tables."""
     s, p = cfg.eexi["speed"], cfg.eexi["power"]
     assert s["bulk_carrier"]["A"] * 80_000 ** s["bulk_carrier"]["C"] == pytest.approx(14.46, abs=0.02)
     assert p["bulk_carrier"]["D"] * 80_000 ** p["bulk_carrier"]["F"] == pytest.approx(10_672, rel=0.01)
@@ -118,7 +118,7 @@ def test_cruise_row_uses_gt_not_dwt(cfg) -> None:
 
 
 def test_unmapped_ship_type_raises(cfg) -> None:
-    """Section 3: no falling through to a default."""
+    """Section 3.3: no falling through to a default."""
     with pytest.raises(MissingParameter, match="does not map"):
         cfg.eexi_type("submarine")
 
@@ -193,7 +193,7 @@ def test_estimate_b_sits_inside_the_fleet_envelope(vessel, cfg) -> None:
 
 def test_estimates_agree_on_installed_power_but_not_on_speed(vessel, cfg) -> None:
     """The corrected EEXI power (67,912 kW) sits just below Estimate B's Admiralty
-    range (69,600-85,100 kW) -- close agreement, as Section 3 says.
+    range (69,600-85,100 kW) -- close agreement, as Section 3.3 says.
 
     But they disagree on DESIGN SPEED, 25.55 against 22.62 kn, and load goes as
     1/V^3. Agreeing on installed power is therefore not enough for the emissions to
@@ -288,7 +288,7 @@ def test_requesting_an_unknown_estimate_raises(vessel, cfg) -> None:
 
 
 def test_pilot_hull_is_not_high_speed(vessel) -> None:
-    """Section 5 condition 1 never fires for a large slow-speed-diesel ship."""
+    """Section 3.5 condition 1 never fires for a large slow-speed-diesel ship."""
     assert is_high_speed(vessel) is False
 
 
@@ -401,7 +401,7 @@ def test_imo_main_fuel_fallback_rejects_a_tied_group_mode() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §4 -- At berth vs Anchored, via port-visit intervals
+# §3.4 -- At berth vs Anchored, via port-visit intervals
 # ---------------------------------------------------------------------------
 
 

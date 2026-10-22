@@ -1,4 +1,4 @@
-"""§8 -- sensitivity and validation checks.
+"""§4 -- sensitivity and validation checks.
 
 Every check returns a :class:`Check`, allowing the run to report all available
 evidence rather than stopping at the first warning or failure.

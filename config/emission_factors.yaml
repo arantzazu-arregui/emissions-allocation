@@ -14,7 +14,7 @@ source:
 
 # =============================================================================
 # Table 16 -- Operational phase assignment decision matrix
-# printed p.66 / PDF p.94.  Used by §4.1.
+# printed p.66 / PDF p.94.  Used by paper §3.4 (Table 5).
 # =============================================================================
 operating_mode_matrix:
   table: "Table 16"
@@ -62,14 +62,14 @@ operating_mode_matrix:
     coast: "Natural Earth coastline shapefiles (as used by the source study)"
     port: "port dataset, each port represented by a single point (source study §2.7.1)"
 
-  # §4.1 limitation: GFW does not expose AIS navigational status, so 'at_berth'
+  # Paper §3.4 limitation: GFW does not expose AIS navigational status, so 'at_berth'
   # and 'anchored' are separated by distance alone. For the 12,000-14,499 TEU
   # band this is a 1,300 vs 1,800 kW auxiliary difference, and vessel A spends
   # 24.9% of the study period inside port visits.
 
 # =============================================================================
 # Table 17 -- Auxiliary engine and boiler power output (kW)
-# printed p.68 / PDF p.96.  Used by §4.3.
+# printed p.68 / PDF p.96.  Used by paper §3.4.2 (Tables 6 and C5).
 # Bands are [min, max]; `null` max means open-ended.
 # =============================================================================
 auxiliary_boiler_power:
@@ -237,7 +237,7 @@ auxiliary_boiler_power:
 
 # =============================================================================
 # Table 19 -- SFC_base (g/kWh) by engine type, fuel and year built
-# printed pp.70-71 / PDF pp.98-99.  Used by §3.4 and §4.4.
+# printed pp.70-71 / PDF pp.98-99.  Used by paper §3.5 (Tables 7 and C7).
 # Only the 2001+ column is carried: both pilot hulls are post-2001 builds.
 # =============================================================================
 sfc_base:
@@ -253,7 +253,7 @@ sfc_base:
     boiler:            {HFO: 340, MDO: 320, LNG: 285}   # "Steam Turbines (and boilers)"
 
 # =============================================================================
-# §4.4 -- main engine load correction, IMO equation (10), verbatim
+# Paper §3.5 -- main engine load correction, IMO equation (10), verbatim
 #   SFC_ME,i = SFC_base * (0.455*Load^2 - 0.710*Load + 1.280)
 # printed p.71 / PDF p.99.
 # =============================================================================
@@ -280,7 +280,7 @@ load_correction:
 
 # =============================================================================
 # Table 20 -- Low load adjustment factors
-# printed p.74 / PDF p.102.  Used by §3.5.
+# printed p.74 / PDF p.102.  Used by paper §3.5 (Table C8).
 # =============================================================================
 low_load_factors:
   table: "Table 20"
@@ -296,7 +296,7 @@ low_load_factors:
 
 # =============================================================================
 # Table 21 -- Fuel-based emission factors
-# printed p.74 / PDF p.102.  Used by §3.3.
+# printed p.74 / PDF p.102.  Used by paper §3.5 (Tables 7 and C9).
 # =============================================================================
 emission_factors:
   table: "Table 21"
@@ -312,19 +312,19 @@ emission_factors:
   # marine gas oil (MGO). For low-sulphur HFO fuels it was assumed the same
   # carbon content and EF_f than with HFO."
   #
-  # §3.2: the IMO 2020 sulphur cap is therefore IMMATERIAL to CO2. LSHFO carries
+  # Paper §3.5: the IMO 2020 sulphur cap is therefore IMMATERIAL to CO2. LSHFO carries
   # the same factor as HFO, and scrubber fitting affects SOx only. The fuel-switch
   # date is recorded for transparency but does not change the result.
 
 # =============================================================================
-# §3.1 -- fuel assignment rule (Selin et al. 2021, following the IMO study)
+# Paper §3.5 -- fuel assignment rule (Selin et al. 2021, following the IMO study)
 # =============================================================================
 fuel_assignment:
   # Distillate (MDO/MGO) when ANY condition holds; residual (HFO) otherwise.
   distillate_when:
     - main_engine_is_high_speed      # HSD -- not applicable to either pilot hull
-    - inside_eca                     # point-in-polygon, §3.1 condition 2
-    - voyage_leg_is_eu_to_eu         # from voyage_leg.is_eu_eu, §3.1 condition 3
+    - inside_eca                     # point-in-polygon, paper §3.5 condition 2
+    - voyage_leg_is_eu_to_eu         # from voyage_leg.is_eu_eu, paper §3.5 condition 3
   residual_fuel: HFO
   distillate_fuel: MDO
 
@@ -348,7 +348,7 @@ fuel_assignment:
     mediterranean_included: false
 
 # =============================================================================
-# §6.1 -- unit conversions
+# Paper §3.7 -- unit conversions
 # =============================================================================
 conversions:
   # Global Carbon Budget reports million tonnes of CARBON, not CO2.
