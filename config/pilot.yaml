@@ -196,7 +196,7 @@ spatial:
     eca_sox_pm: eca_reg14_sox_pm/eca_reg14_sox_pm.shp
     coastline: EEZ_land_union_v4_202410/EEZ_land_union_v4_202410.shp
 
-  # OPEN ITEM 3 -- REQUIRED BY paper §3.4 AND NOT YET PRESENT.
+  # OPEN ITEM 3 (resolved) -- coastline layer required by paper §3.4.
   # The Table 16 operating-mode matrix needs distance-to-coast per vessel-hour.
   # Distance-to-port cannot stand in: beyond 5 nm from any port, coast distance is
   # what separates Anchored from Slow transit, and their auxiliary loads differ

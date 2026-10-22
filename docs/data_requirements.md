@@ -1,5 +1,13 @@
 # Data requirements for a single-vessel replication of Selin et al. (2021)
 
+> **Historical record, superseded.** This is the pre-implementation audit of
+> 16 August 2026, kept for provenance. The scripts it reviews (`fetch_presence.py`,
+> `analyze_presence.py`, `make_sample.py`) and the repository layout it proposes no
+> longer exist, and its blocking gaps (G1, G2, G8) and open decisions were resolved
+> during implementation. For the current method see Section 3 of the
+> [final paper](FinalPaper_ArantzazuArreguiGonzalez.pdf); for current inputs see
+> [`data_sources.md`](data_sources.md).
+
 **Repository reviewed:** `C:\Users\arant\dev\emissions-allocation`
 **Reviewed:** 16 August 2026
 **Purpose:** establish, before any pipeline code is written, exactly which datasets, fields, and
