@@ -137,7 +137,7 @@ Each stage is restartable and can also be run alone with `--stage <name>`:
 | `allocation` | International-voyage share and allocation to countries | 3.6 |
 | `baselines` | Global Carbon Budget national baselines | 3.7 |
 | `impacts` | Absolute and percentage additions to national carbon budgets | 3.7 |
-| `validate` | Identity, coverage, leg-speed, mode, specification, and smoothing checks | 4 |
+| `validate` | Identity, coverage, leg-speed, mode, specification, and smoothing checks | — (results reported in Section 4) |
 
 GFW permits one concurrent 4Wings report, so presence requests run one at a
 time. Keep warnings from `validate` in the report; do not change parameters

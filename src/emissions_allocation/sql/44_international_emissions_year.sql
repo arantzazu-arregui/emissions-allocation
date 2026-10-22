@@ -1,4 +1,4 @@
--- §3.6 -- voyage-based international-shipping emissions.
+-- Paper §3.6 -- voyage-based international-shipping emissions.
 --
 -- Fourth IMO GHG Study 2020 Option 2: a voyage is international when its
 -- departure and arrival ports are in different countries. The destination port

@@ -1,4 +1,4 @@
--- §3.5 -- fuel assignment at vessel-hour grain.
+-- Paper §3.5 -- fuel assignment at vessel-hour grain.
 --
 -- Following Selin et al., a vessel-hour burns DISTILLATE (MDO/MGO) when ANY of
 -- three conditions holds, and RESIDUAL (HFO) otherwise:

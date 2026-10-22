@@ -1,4 +1,4 @@
-"""§§3.2 and 3.6 -- EEZ diagnostics and national allocation keys.
+"""Paper §§3.2 and 3.6 -- EEZ diagnostics and national allocation keys.
 
 Attributes annual CO2 to countries under each allocation rule: flag, owner, manager
 and operator. The fifth option, bunker fuel, is not computable at this scale -- it
@@ -26,7 +26,7 @@ from emissions_allocation.db import Database
 log = logging.getLogger(__name__)
 
 # The four computable options. Bunker is deliberately absent -- see the module
-# docstring and Section 3.6 of the final paper.
+# docstring and paper §3.6.
 ALLOCATION_OPTIONS = ("flag", "owner", "manager", "operator")
 
 # Selin et al.: domestic if more than 95% of all active signals lie in one EEZ.
@@ -63,13 +63,13 @@ def vessel_key_table(cfg: Config) -> pd.DataFrame:
 
 
 def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.DataFrame:
-    """§3.6 -- attribute ship-year CO2 to countries under each rule.
+    """Paper §3.6 -- attribute ship-year CO2 to countries under each rule.
 
     Args:
         db: Database with the SQL registered.
         cfg: Loaded configuration.
         emissions_year: ``imo, year, scenario_id, power_estimate,
-            smoothing_window, co2_tonnes`` from Section 5.
+            smoothing_window, co2_tonnes`` from paper §3.5.
 
     Returns:
         ``option, country, gcb_name, year, scenario_id, ..., co2_tonnes, co2_mt``
@@ -79,7 +79,7 @@ def allocate(db: Database, cfg: Config, emissions_year: pd.DataFrame) -> pd.Data
     missing = required - set(emissions_year.columns)
     if missing:
         raise ValueError(
-            "allocation requires international-emissions totals; missing Section 3.6 "
+            "allocation requires international-emissions totals; missing paper §3.6 "
             f"diagnostics: {sorted(missing)}"
         )
     db.register_frame("emissions_year", emissions_year)
@@ -106,7 +106,7 @@ def international_emissions_year(
     voyage_leg : pandas.DataFrame
         Consecutive port-pair legs including country-based international labels.
     coverage : pandas.DataFrame
-        Vessel-year coverage fractions used for the Section 3.1 coverage correction.
+        Vessel-year coverage fractions used for the paper §3.1 coverage correction.
     cfg : Config
         Run configuration controlling coverage correction and warning threshold.
 
@@ -133,7 +133,7 @@ def international_emissions_year(
 
 
 def domestic_test(db: Database, cfg: Config) -> pd.DataFrame:
-    """§3.2 -- domestic if more than 95% of hours lie in a single country's EEZ.
+    """Paper §3.2 -- domestic if more than 95% of hours lie in a single country's EEZ.
 
     High-seas signals remain in the denominator, following Selin et al.
 

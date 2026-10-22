@@ -28,7 +28,7 @@ operating_mode_matrix:
   # !! because liquid tankers are often lightered offshore and so can berth
   # !! within 5 nm of port. Dropping the footnote would wrongly let a container
   # !! ship be "At berth" up to 5 nm from port. The final paper keeps it
-  # !! (Table 5, Section 3.4).
+  # !! (Table 5, paper §3.4).
   columns:
     - {key: port_le_1,  bound: "port distance <= 1 nm",       applies_to: all}
     - {key: port_1_5,   bound: "port distance 1-5 nm",        applies_to: liquid_tankers_only}
@@ -41,7 +41,7 @@ operating_mode_matrix:
   # Speed-band boundaries are inclusive as the source states them:
   #   "1<=" , "1-3 (incl. 3)" , "3-5 (incl. 5)" , ">5"
   # i.e. sog <= 1 | 1 < sog <= 3 | 3 < sog <= 5 | sog > 5. A clean partition.
-  # Final paper Table 5 states the same inclusive bands.
+  # Paper Table 5 states the same inclusive bands.
   rows:
     - {sog_max: 1.0,               me_load: null,
        modes: [at_berth,    at_berth,        anchored,        anchored,        anchored]}
@@ -354,7 +354,7 @@ conversions:
   # Global Carbon Budget reports million tonnes of CARBON, not CO2.
   mtc_to_mtco2:
     value: 3.664
-    source: "final paper Section 3.7, equation (13), and Table B1; ratio of molar masses CO2:C = 44.009/12.011"
+    source: "paper §3.7, equation (13), and Table B1; ratio of molar masses CO2:C = 44.009/12.011"
   # UNdata bunker CSVs use "Metric tons, thousand".
   undata_thousand_tonnes_to_tonnes:
     value: 1000

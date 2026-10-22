@@ -272,15 +272,15 @@ class Config:
     def spatial_layer(self, key: str) -> Path:
         """Path to a spatial layer, or raise if it is an unresolved open item.
 
-        ``coastline`` is deliberately absent from the shipped config: Section 3.4 needs
+        ``coastline`` is deliberately absent from the shipped config: paper §3.4 needs
         distance-to-coast and no layer has been chosen. Raising here, with the
         download URL, is the ground rule -- no default is substituted.
         """
         if key not in self.spatial:
             raise MissingParameter(
                 f"spatial layer {key!r} is not configured.\n"
-                f"  This is an OPEN ITEM. See the final paper, Section 3.4, and config/pilot.yaml.\n"
-                f"  For 'coastline': Section 3.4's operating-mode matrix needs distance-to-coast.\n"
+                f"  This is an OPEN ITEM. See paper §3.4 and config/pilot.yaml.\n"
+                f"  For 'coastline': paper §3.4's operating-mode matrix needs distance-to-coast.\n"
                 f"  The IMO Fourth GHG Study measures it against Natural Earth coastline\n"
                 f"  shapefiles (Table 16, printed p.66). Download a coastline layer, put it\n"
                 f"  in data/external/, and set spatial.coastline in config/pilot.yaml.\n"
@@ -306,7 +306,7 @@ class Config:
     def eexi_type(self, ship_type: str) -> str:
         """Map a ship-type string to one of MEPC.333(76)'s twelve categories.
 
-        Section 3.3: any unmapped type must raise rather than fall through to a
+        Paper §3.3: any unmapped type must raise rather than fall through to a
         default, because a silently wrong category returns a plausible number.
         """
         aliases = self.eexi.get("ship_type_aliases") or {}

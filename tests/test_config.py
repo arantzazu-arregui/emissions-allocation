@@ -39,7 +39,7 @@ def test_study_period_matches_the_methodology(cfg) -> None:
 
 
 def test_elapsed_hours_matches_the_documented_total(cfg) -> None:
-    """§3.1: 70,128 vessel-hours maximum over the eight-year period."""
+    """Paper §3.1: 70,128 vessel-hours maximum over the eight-year period."""
     assert cfg.elapsed_hours == 70128
 
 
@@ -163,7 +163,7 @@ def test_lbp_is_marked_estimated(cfg) -> None:
 
 
 def test_engine_type_is_marked_as_assigned(cfg) -> None:
-    """Section 3.3: assigned from the IMO default, not observed."""
+    """Paper §3.3: assigned from the IMO default, not observed."""
     engine = cfg.vessel(VESSEL_A).spec("engine_type")
     assert engine.value == "SSD"
     assert engine.estimated is True
@@ -205,7 +205,7 @@ def test_missing_parameter_message_refuses_to_default(cfg) -> None:
 
 
 def test_coastline_layer_is_configured(cfg) -> None:
-    """Open item 3, resolved. Section 3.4 needs distance-to-coast per vessel-hour."""
+    """Open item 3, resolved. Paper §3.4 needs distance-to-coast per vessel-hour."""
     assert cfg.spatial_layer("coastline").exists()
     assert cfg.spatial_inner("coastline").endswith(".shp")
 
@@ -227,7 +227,7 @@ def test_configured_spatial_layers_exist(cfg) -> None:
 
 
 def test_bunker_allocation_is_explicitly_not_computable(cfg) -> None:
-    """Section 3.6: out of scope by construction, not by omission."""
+    """Paper §3.6: out of scope by construction, not by omission."""
     vessel = cfg.vessel(VESSEL_A)
     assert vessel.allocation_country("bunker") is None
     assert "not computable" in vessel.allocation_keys["bunker"]["method"]
@@ -239,7 +239,7 @@ def test_bunker_allocation_is_explicitly_not_computable(cfg) -> None:
 
 
 def test_vessel_a_allocation_keys_are_degenerate(cfg) -> None:
-    """Section 3.6: flag is Hong Kong; all three commercial roles resolve to China."""
+    """Paper §3.6: flag is Hong Kong; all three commercial roles resolve to China."""
     vessel = cfg.vessel(VESSEL_A)
     assert vessel.allocation_country("flag") == "HKG"
     assert vessel.allocation_country("owner") == "CHN"
@@ -248,7 +248,7 @@ def test_vessel_a_allocation_keys_are_degenerate(cfg) -> None:
 
 
 def test_operator_is_flagged_as_a_proxy(cfg) -> None:
-    """Section 3.6: Equasis has no operator field; commercial manager stands in."""
+    """Paper §3.6: Equasis has no operator field; commercial manager stands in."""
     operator = cfg.vessel(VESSEL_A).allocation_keys["operator"]
     assert "PROXY" in operator["method"]
     assert operator["estimated"] is True

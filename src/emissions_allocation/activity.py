@@ -1,4 +1,4 @@
-"""§§3.1–3.2 -- AIS activity preprocessing and voyage construction.
+"""Paper §§3.1–3.2 -- AIS activity preprocessing and voyage construction.
 
 Produces a continuous, ordered, hourly position-and-speed series across the study
 period, plus the sequence of port calls that defines the vessel's voyages.
@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 EARTH_RADIUS_KM = 6371.0088
 KM_PER_NAUTICAL_MILE = 1.852
 
-# §3.2 voyage-leg construction and §3.5 fuel assignment.
+# Paper §3.2 voyage-leg construction and paper §3.5 fuel assignment.
 EU27 = frozenset({
     "AUT", "BEL", "BGR", "HRV", "CYP", "CZE", "DNK", "EST", "FIN", "FRA", "DEU",
     "GRC", "HUN", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "POL", "PRT",
@@ -84,7 +84,7 @@ def load_presence(
     Every year passes through the three mandatory assertions before it is kept.
     Records carry identity inline, so no identity join is needed -- but ``imo`` is
     not a filterable field, so the filter is on ``shipname`` and the IMO restriction
-    is applied here (§3.1).
+    is applied here (paper §3.1).
 
     Returns:
         One row per vessel-hour: ``imo, ts, lat, lon, hours``.
@@ -317,7 +317,7 @@ def derive_speed(frame: pd.DataFrame) -> pd.DataFrame:
 
     ``SOG`` is the IMO's term and the AIS field name, but note the difference in
     provenance: in the Fourth GHG Study it is *transmitted* by the vessel, whereas
-    here it is *derived* from consecutive cell centroids. Section 3.1 documents that
+    here it is *derived* from consecutive cell centroids. Paper §3.1 documents that
     open-data substitution.
     """
     out = frame.sort_values("ts").reset_index(drop=True).copy()
@@ -339,7 +339,7 @@ def derive_speed(frame: pd.DataFrame) -> pd.DataFrame:
 def build_spine(
     frame: pd.DataFrame, start: datetime, end: datetime, imo: str
 ) -> pd.DataFrame:
-    """Reindex onto a complete hourly grid, filling gaps per Sections 1.2–1.3.
+    """Reindex onto a complete hourly grid, filling gaps per paper §3.1.
 
     Position is filled by nearest neighbour in time and speed linearly, following
     the source paper. Every filled hour is flagged.
@@ -624,7 +624,7 @@ def add_imo2020_port_phase_sensitivity(
 
 
 def cubic_bias(sog: pd.Series) -> float:
-    """``mean(v^3) / (mean v)^3`` -- the quantity Section 3.1 aims to reduce.
+    """``mean(v^3) / (mean v)^3`` -- the quantity paper §3.1 aims to reduce.
 
     Reported per smoothing window so the bias reduction is an output rather than an
     assertion. Measured 1.67x unsmoothed and 1.19x at a 3-hour window.
@@ -696,7 +696,7 @@ def _parse_port_visits(events: Sequence[dict[str, Any]], imo: str) -> pd.DataFra
             "lat": start_anchorage.get("lat"),
             "lon": start_anchorage.get("lon"),
             # A visit can begin at one anchorage and end at another; both are
-            # places the vessel was, so both feed the Section 3.4 port-distance point set.
+            # places the vessel was, so both feed the paper §3.4 port-distance point set.
             "end_lat": end_anchorage.get("lat"),
             "end_lon": end_anchorage.get("lon"),
             "at_dock": bool(start_anchorage.get("atDock")),
@@ -770,7 +770,7 @@ def classify_gaps(
     Gap *structure* is what distinguishes them, not gap size:
 
     * Many short scattered runs mean thin reception -- the vessel was trading and
-      hours were missed. A coverage-scaled branch would correct them with Section 3.1's
+      hours were missed. A coverage-scaled branch would correct them with paper §3.1's
       ``E / coverage``; the configured primary run instead models interpolated hours.
     * One long contiguous run with **no port calls inside it** means the hull was
       out of service. Scaling those hours up would fabricate voyages: applied to
@@ -860,7 +860,7 @@ def coverage_by_year(frame: pd.DataFrame, db=None) -> pd.DataFrame:
     ``coverage_raw``
         observed / elapsed. Transparency only.
     ``coverage_active``
-        observed / (elapsed - inactive). **This is the Section 3.1 divisor (equation B4).** Out-of-service
+        observed / (elapsed - inactive). **This is the coverage-correction divisor, paper equation (B4).** Out-of-service
         hours leave the denominator rather than being scaled up, so a lay-up cannot
         fabricate voyages.
 

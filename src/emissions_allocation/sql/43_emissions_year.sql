@@ -1,4 +1,4 @@
--- §§3.1 and 3.5 -- ship-year CO2, with and without the coverage correction.
+-- Paper §§3.1 and 3.5 -- ship-year CO2, with and without the coverage correction.
 --
 --   E_ship,y = SUM_i E_CO2,i          [t / year]
 --
@@ -9,7 +9,7 @@
 -- hours from the denominator, so the correction recovers only genuinely missed
 -- reception. See activity.classify_gaps and the note in config/pilot.yaml.
 --
--- Both figures are reported either way (paper Sections 3.1 and 4.1).
+-- Both figures are reported either way (paper §§3.1 and 4.1).
 
 SELECT
     e.imo,

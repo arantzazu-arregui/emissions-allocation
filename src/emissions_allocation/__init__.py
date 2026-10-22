@@ -5,8 +5,8 @@ international shipping through national allocation* (Environ. Res. Lett. 16, 045
 built entirely from public data.
 
 The method is documented in Section 3 of the final paper,
-``docs/FinalPaper_ArantzazuArreguiGonzalez.pdf``. Section numbers (§) in module
-docstrings and comments refer to that paper:
+``docs/FinalPaper_ArantzazuArreguiGonzalez.pdf``. Docstrings and comments cite it as
+``paper §3.4``, ``paper Table 5`` or ``paper equation (B4)``:
 
 ======= =============================================== =============================
  Paper   Pipeline step                                  Module
@@ -19,7 +19,7 @@ docstrings and comments refer to that paper:
  3.5     Assign fuel and calculate CO2                  :mod:`fuel`, :mod:`emissions`
  3.6     Allocate international-voyage emissions        :mod:`allocation`
  3.7     Compute allocation impacts                     :mod:`baselines`, :mod:`impacts`
- 4       Validate, inspect, and extend                  :mod:`validate`
+ --      Validate, inspect, and extend                  :mod:`validate`
 ======= =============================================== =============================
 
 Python owns API access, parsing and the physical model; DuckDB owns spatial joins,

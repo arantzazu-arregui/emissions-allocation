@@ -1,7 +1,7 @@
 # EEXI estimation parameters -- IMO Resolution MEPC.333(76), Appendix.
 #
-# Reproduced in the final paper as Table C1 (Appendix C) and used by Estimate A,
-# Section 3.3.1. Held as configuration so that extending the work from two
+# Reproduced in paper Table C1 (Appendix C) and used by Estimate A,
+# paper §3.3.1. Held as configuration so that extending the work from two
 # vessels to the full fleet requires no edit to model code.
 #
 #     V_ref,avg = A * B^C     [knots]
@@ -20,7 +20,7 @@
 
 source:
   document: "IMO Resolution MEPC.333(76) (2021), Appendix"
-  via: "final paper, Appendix C, Table C1"
+  via: "paper Table C1 (Appendix C)"
   note: >
     Take these from the resolution, never from a reproduction. Sun et al. (2026)
     Table 1 prints them without the DWT caps and without the GT exception; applying

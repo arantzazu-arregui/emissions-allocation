@@ -155,7 +155,7 @@ def test_blank_imo_is_not_counted_as_a_distinct_hull() -> None:
 
 
 def test_records_are_filtered_to_the_expected_imo() -> None:
-    """Section 3.1: IMO is a post-filter because it cannot be a request filter."""
+    """Paper §3.1: IMO is a post-filter because it cannot be a request filter."""
     records = _hour_records(EXPECTED_IMO, 8782) + [{"imo": "", "hours": 1}]
     start, end = year_bounds(2024)
     assert all(r["imo"] == EXPECTED_IMO for r in assert_presence(records, EXPECTED_IMO, start, end))
@@ -222,7 +222,7 @@ def test_year_bounds_handles_leap_years() -> None:
 
 
 def test_captured_year_sample_carries_exactly_one_imo() -> None:
-    """Identity integrity on the real captured payload (Section 4)."""
+    """Identity integrity on the real captured payload (validation checks)."""
     records = json.loads(
         (API_SAMPLES / "round4" / "C_year_sample_records.json").read_text(encoding="utf-8")
     )
