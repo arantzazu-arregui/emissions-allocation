@@ -239,9 +239,9 @@ vessels:
     # number. LBP ~ 0.95 * LOA is the standard container-ship approximation and
     # is corroborated by Cepowski & Chorab's DWT relation (344.4 m predicted).
     lbp_m:
-      value: 345.0
-      source: "paper Table C3"
-      method: "LBP ~ 0.95 * LOA, corroborated by Cepowski & Chorab DWT relation (344.4 m)"
+      value: 347.60
+      source: "paper Tables 4 and C3"
+      method: "LBP = 0.95 * LOA (0.95 * 365.90 m), corroborated by Cepowski & Chorab DWT relation (344.4 m)"
       estimated: true
 
     engine_type: {value: SSD, source: "IMO Fourth GHG Study 2020 default; paper §3.3", method: assigned, estimated: true}

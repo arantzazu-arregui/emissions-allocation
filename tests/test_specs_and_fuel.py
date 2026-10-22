@@ -166,14 +166,14 @@ def test_eexi_power_is_nearly_linear_in_deadweight(cfg) -> None:
 
 
 def test_estimate_b_speed_range_matches_the_documentation(vessel, cfg) -> None:
-    """21.5-23.8 kn at L_BP = 345 m over Fn 0.19-0.21."""
+    """21.6-23.8 kn at L_BP = 347.6 m over Fn 0.19-0.21."""
     low, high = specs.estimate_b_admiralty(vessel, cfg.defaults).variants["speed_kn_range"]
-    assert low == pytest.approx(21.5, abs=0.1)
-    assert high == pytest.approx(23.8, abs=0.1)
+    assert low == pytest.approx(21.57, abs=0.02)
+    assert high == pytest.approx(23.84, abs=0.02)
 
 
 def test_estimate_b_displacement_routes_bracket_a_real_difference(vessel, cfg) -> None:
-    """176,807 t geometric against 195,762 t from the DWT ratio -- ~11% apart.
+    """178,042 t geometric against 195,762 t from the DWT ratio -- ~10% apart.
 
     Charchalis's own worked example runs ~18% above C_B*L*B*T*rho, so the two routes
     bracket a convention difference rather than a rounding error, and both are carried.
@@ -181,7 +181,7 @@ def test_estimate_b_displacement_routes_bracket_a_real_difference(vessel, cfg) -
     variants = specs.estimate_b_admiralty(vessel, cfg.defaults).variants
     geometric = variants["displacement_geometric_t"]
     ratio = variants["displacement_ratio_t"]
-    assert geometric == pytest.approx(176_807, rel=0.005)
+    assert geometric == pytest.approx(178_042, rel=0.005)
     assert ratio == pytest.approx(195_762, rel=0.001)
     assert ratio > geometric
 
@@ -192,17 +192,17 @@ def test_estimate_b_sits_inside_the_fleet_envelope(vessel, cfg) -> None:
 
 
 def test_estimates_agree_on_installed_power_but_not_on_speed(vessel, cfg) -> None:
-    """The corrected EEXI power (67,912 kW) sits just below Estimate B's Admiralty
-    range (69,600-85,100 kW) -- close agreement, as paper §3.3 says.
+    """The corrected EEXI power (67,912 kW) sits inside Estimate B's Admiralty
+    endpoint range (65,900-94,700 kW) -- close agreement, as paper §3.3 says.
 
-    But they disagree on DESIGN SPEED, 25.55 against 22.62 kn, and load goes as
+    But they disagree on DESIGN SPEED, 25.55 against 22.70 kn, and load goes as
     1/V^3. Agreeing on installed power is therefore not enough for the emissions to
-    agree: the 1.44x speed-cubed ratio is what drives them apart.
+    agree: the 1.43x speed-cubed ratio is what drives them apart.
     """
     a = specs.estimate_a_eexi(vessel, cfg.defaults, cfg)
     b = specs.estimate_b_admiralty(vessel, cfg.defaults)
-    assert a.mcr_kw / b.mcr_kw == pytest.approx(0.87, abs=0.03)
-    assert (a.design_speed_kn / b.design_speed_kn) ** 3 == pytest.approx(1.44, abs=0.03)
+    assert a.mcr_kw / b.mcr_kw == pytest.approx(0.86, abs=0.03)
+    assert (a.design_speed_kn / b.design_speed_kn) ** 3 == pytest.approx(1.43, abs=0.03)
 
 
 def test_admiralty_relation_scales_as_speed_cubed() -> None:
@@ -212,8 +212,8 @@ def test_admiralty_relation_scales_as_speed_cubed() -> None:
 
 
 def test_froude_speed_matches_a_hand_calculation() -> None:
-    """Fn 0.21 at L_BP 345 m -> 23.75 kn."""
-    assert specs.froude_speed_kn(0.21, 345.0) == pytest.approx(23.75, abs=0.05)
+    """Fn 0.21 at L_BP 347.6 m -> 23.84 kn."""
+    assert specs.froude_speed_kn(0.21, 347.6) == pytest.approx(23.84, abs=0.05)
 
 
 def test_c_adm_calibration_sits_in_the_textbook_band(cfg) -> None:
@@ -249,7 +249,7 @@ def test_estimate_d_epa_regression_matches_the_worked_value(vessel, cfg) -> None
     assert estimate.mcr_kw == pytest.approx(92_868, abs=1)
     assert estimate.variants["epa_main_engine_hp"] == pytest.approx(124_539, abs=1)
     assert estimate.variants["epa_extrapolated"] is True
-    assert estimate.design_speed_kn == pytest.approx(22.62, abs=0.02)
+    assert estimate.design_speed_kn == pytest.approx(22.70, abs=0.02)
     assert estimate.load_at_reference == pytest.approx(0.83)
 
 

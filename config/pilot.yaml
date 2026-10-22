@@ -70,9 +70,13 @@ vessels:
     # container/RoRo/auto-carrier/reefer MCR regression and A's EEXI reference
     # speed; its label records this hybrid pairing.
     #
-    # Read the resulting figure with the THETIS-MRV validation caveat (data/external/thetis/README.md) in view: against EMSA-verified
-    # emissions, estimate A UNDERSTATES vessel A by 36% (0.64x) while estimate B
-    # matches at 0.98x. D supplies an independent MCR estimate, but shares A's
+    # Read the resulting figure with the THETIS-MRV caveat in view
+    # (data/external/thetis/README.md). MRV covers EU-scope voyages only, so the
+    # global model total should exceed it. Computed 2026-10-21 from the w=3
+    # outputs (no pipeline stage performs this check): this vessel, 2018-2024,
+    # A 2.30x and D 2.19x of reported MRV CO2; vessel A, 2018-2019 (the only
+    # years in its export), A 0.78x -- below even the EU subset -- against
+    # B 1.48x and D 1.47x. D supplies an independent MCR estimate, but shares A's
     # speed and therefore does not bracket speed uncertainty. Estimate C -- this
     # hull's actual MCR and service speed from class-society records -- remains the
     # preferred validation target.

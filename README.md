@@ -325,19 +325,22 @@ speed, and speed smoothing is not hidden by selecting a single result.
 
 The reconstruction is feasible from open data, subject to the substitutions
 below. Figures are eight-year (2017–2024) totals at a three-hour smoothing
-window unless stated.
+window unless stated. They come from the current pipeline, which uses
+COSCO ITALY's length between perpendiculars of 347.60 m (0.95 × LOA). The
+paper's Table 10 was computed at 345.0 m and reports Estimate B at 22.62 kn,
+78,258 kW and 897,942 t, and Estimate D at 908,649 t (a 1.92× spread).
 
 | Vessel | Estimate | V_ref (kn) | MCR (kW) | f_ref | Total CO₂ (t) | Ratio |
 |---|---|---:|---:|---:|---:|---:|
 | COSCO ITALY | A, EEXI curve fit | 25.55 | 67,912 | 0.75 | 473,408 | 1.00 |
-| COSCO ITALY | B, Admiralty, calibrated | 22.62 | 78,258 | 1.00 | 897,942 | 1.90 |
-| COSCO ITALY | D, EPA DWT power with Froude speed | 22.62 | 92,868 | 0.83 | 908,649 | 1.92 |
+| COSCO ITALY | B, Admiralty, calibrated | 22.70 | 79,332 | 1.00 | 901,548 | 1.90 |
+| COSCO ITALY | D, EPA DWT power with Froude speed | 22.70 | 92,868 | 0.83 | 900,528 | 1.90 |
 | RCC AMERICA | A, EEXI curve fit | 19.96 | 14,086 | 0.75 | 191,745 | 1.05 |
 | RCC AMERICA | D, EPA DWT power with EEXI speed | 19.96 | 13,282 | 0.75 | 182,511 | 1.00 |
 
 | Substitution | Measured effect |
 |---|---|
-| Ship specifications: published estimation routes replace a commercial register field | Factor of 1.92 on the container ship, 1.05 on the vehicle carrier |
+| Ship specifications: published estimation routes replace a commercial register field | Factor of 1.90 on the container ship, 1.05 on the vehicle carrier |
 | Activity data: aggregated hourly presence replaces transmitted AIS positions and speeds | Totals fall 19.3% (container) and 7.9% (vehicle) between raw and seven-hour smoothed speed |
 | Gap treatment: in-service hours infilled, out-of-service hours excluded | 1.6% and 1.3% |
 | Fuel and berth rules: observed legs and port-visit intervals | No material change to CO₂; about 16,000 hours reclassified |
@@ -347,7 +350,7 @@ window unless stated.
   Auxiliary-engine and boiler fuel is identical under every estimate, so the
   whole spread sits in the main engine.
 - **Estimates rescale a series rather than reshape it.** The ratio between
-  estimates stays between 1.85 and 1.93 in every year for the container ship,
+  estimates stays between 1.84 and 1.92 in every year for the container ship,
   so ratios and rankings are more robust than absolute tonnages. Because the
   factor differs by hull, this robustness does not carry over automatically to
   allocations.
