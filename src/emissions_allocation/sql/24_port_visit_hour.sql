@@ -1,9 +1,8 @@
 -- §4 -- mark each vessel-hour that falls inside a GFW port-visit interval.
 --
 -- Table 16 separates "at berth" from "anchored" by DISTANCE TO PORT alone, because
--- the IMO study had no better signal. METHODOLOGY Section 4 records the departure directly:
--- "GFW does not expose AIS navigational status, so 'at berth' and 'anchored' are
--- separated by distance alone."
+-- the IMO study had no better signal, and GFW does not expose AIS navigational
+-- status either. Paper Section 3.4 records the departure from that rule.
 --
 -- We have a better signal, and it comes from a different endpoint. A GFW port-visit
 -- event states, with a confidence score, that the vessel WAS IN PORT between two

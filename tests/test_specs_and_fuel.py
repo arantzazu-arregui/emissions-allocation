@@ -1,6 +1,7 @@
 """§3 specifications and §5 fuel assignment.
 
-The Section 3 tests pin the implemented estimates to the figures in docs/METHODOLOGY.md.
+The Section 3 tests pin the implemented estimates to the figures in the final paper
+(Section 3.3, Table 4, and Section 4.2, Table 10).
 Estimate A returns 25.55 kn once MEPC.333(76)'s containership caps are applied. That
 remains above the 24.5 kn observed-fleet maximum and is asserted as a documented
 limitation rather than hidden by an uncapped regression.
@@ -78,7 +79,7 @@ def test_hull_relations_validate_within_a_few_percent(vessel, cfg) -> None:
 def test_both_containership_caps_bind_for_vessel_a(vessel, cfg) -> None:
     """MEPC.333(76) caps the containership capacity parameter twice, differently:
     80,000 DWT for speed and 95,000 DWT for power. Vessel A is 156,610 DWT so both
-    bind, giving the figures stated in docs/METHODOLOGY.md Section 3."""
+    bind, giving the figures in the final paper, Table 4 and Table 10."""
     estimate = specs.estimate_a_eexi(vessel, cfg.defaults, cfg)
     assert estimate.variants["capacity_speed"] == 80_000
     assert estimate.variants["capacity_power"] == 95_000

@@ -9,7 +9,7 @@
 -- hours from the denominator, so the correction recovers only genuinely missed
 -- reception. See activity.classify_gaps and the note in config/pilot.yaml.
 --
--- Both figures are reported either way, as METHODOLOGY Section 5 requires.
+-- Both figures are reported either way (paper Sections 3.1 and 4.1).
 
 SELECT
     e.imo,

@@ -276,7 +276,7 @@ def test_small_ship_overrides_do_not_apply_to_either_pilot_hull() -> None:
 
 
 def test_port_1_to_5_column_is_restricted_to_liquid_tankers() -> None:
-    """The footnote in docs/METHODOLOGY.md Section 4 drops.
+    """Table 16's footnote, kept in paper Table 5 (Section 3.4).
 
     Liquid tankers are often lightered offshore and so can berth within 5 nm of
     port. Applying that column to a container ship would let vessel A be "At berth"

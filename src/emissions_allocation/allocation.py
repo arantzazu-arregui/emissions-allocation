@@ -26,7 +26,7 @@ from emissions_allocation.db import Database
 log = logging.getLogger(__name__)
 
 # The four computable options. Bunker is deliberately absent -- see the module
-# docstring and METHODOLOGY's "Scope and honest limits".
+# docstring and Section 3.6 of the final paper.
 ALLOCATION_OPTIONS = ("flag", "owner", "manager", "operator")
 
 # Selin et al.: domestic if more than 95% of all active signals lie in one EEZ.

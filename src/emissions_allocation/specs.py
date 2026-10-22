@@ -373,7 +373,7 @@ def estimate_c_sourced(vessel: Vessel, defaults: dict[str, Any]) -> PowerEstimat
     speed = vessel.require_spec(
         "power_C_design_speed_kn",
         because=(
-            "Estimate C is a sourced specification (docs/METHODOLOGY.md Section 3, open "
+            "Estimate C is a sourced specification (final paper, Section 3.3.4; open "
             "item 4). Fill in vessel_specs.yaml vessels.<imo>.power_estimates.C from "
             "shipbuilder or class-society records, or drop 'C' from "
             "config/pilot.yaml run.power_estimates."

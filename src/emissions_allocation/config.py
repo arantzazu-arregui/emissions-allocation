@@ -279,7 +279,7 @@ class Config:
         if key not in self.spatial:
             raise MissingParameter(
                 f"spatial layer {key!r} is not configured.\n"
-                f"  This is an OPEN ITEM. See docs/METHODOLOGY.md and config/pilot.yaml.\n"
+                f"  This is an OPEN ITEM. See the final paper, Section 3.4, and config/pilot.yaml.\n"
                 f"  For 'coastline': Section 4's operating-mode matrix needs distance-to-coast.\n"
                 f"  The IMO Fourth GHG Study measures it against Natural Earth coastline\n"
                 f"  shapefiles (Table 16, printed p.66). Download a coastline layer, put it\n"
@@ -434,7 +434,7 @@ def load_config(config_dir: Path | None = None) -> Config:
     if not entries:
         raise ConfigError(
             "config/pilot.yaml lists no vessels. At least one is required; see "
-            "docs/METHODOLOGY.md §0.2 for how vessel B is selected."
+            "'Adding a vessel' in README.md for how vessel B is selected."
         )
 
     spec_blocks = vessel_specs.get("vessels") or {}

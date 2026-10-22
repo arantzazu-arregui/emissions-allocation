@@ -70,9 +70,11 @@ RCC AMERICA was also queried under its former name, HOEGH AMERICA.
 - **Activity data:** Global Fishing Watch APIs (a free non-commercial token is
   required for live requests)
 - **Configuration:** YAML files in [`config/`](config/)
-- **Documentation:** [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) is the
-  complete operational guide; [`docs/data_sources.md`](docs/data_sources.md)
-  records data provenance and handling.
+- **Documentation:** Section 3 of the
+  [final paper](docs/FinalPaper_ArantzazuArreguiGonzalez.pdf) is the method
+  reference, with formulas and constants in Appendices B and C;
+  [`docs/data_sources.md`](docs/data_sources.md) records data provenance,
+  required downloads, and handling.
 
 ### Python packages used
 
@@ -95,8 +97,11 @@ The main dependencies are grouped below.
 
 Set `GFW_TOKEN` in the local `.env` file and do not commit it. Before executing
 the spatial, baseline, or allocation stages, download the required external
-inputs to `data/external/` as described in
-[`docs/data_sources.md`](docs/data_sources.md).
+inputs to `data/external/`, using the filenames listed under
+[Required downloads](docs/data_sources.md#required-downloads) in
+`docs/data_sources.md`. The vessel-specific Equasis records cannot be
+bulk-downloaded: look them up manually on [Equasis](https://www.equasis.org/)
+and record each value with its provenance in `config/vessel_specs.yaml`.
 
 Run a local environment check without calling the API:
 
@@ -105,17 +110,82 @@ python scripts/run_pipeline.py --stage check --offline
 pytest
 ```
 
-Remove `--offline` to test a live GFW request. Run the configured workflow, or
-an individual restartable stage, with:
-
-```powershell
-python scripts/run_pipeline.py --all
-python scripts/run_pipeline.py --stage emissions
-```
+Remove `--offline` to also test a live GFW request.
 
 API responses are cached in `data/raw/`, intermediate tables are written to
 `data/interim/`, and derived outputs are written to `data/out/`. These generated
 directories are ignored by Git, allowing partial runs to resume.
+
+## Running the pipeline
+
+Run every stage in order with:
+
+```powershell
+python scripts/run_pipeline.py --all
+```
+
+Each stage is restartable and can also be run alone with `--stage <name>`:
+
+| Stage | What it does | Paper section |
+|---|---|---|
+| `check` | Validates configuration, DuckDB, and the GFW client | — |
+| `select` | Optional: searches GFW for an additional contrast vessel | — |
+| `activity` | GFW presence and port visits, hourly record, speed over ground, gap classification, voyage legs | 3.1, 3.2 |
+| `specs` | Resolves the configured installed-power and reference-speed estimates | 3.3 |
+| `fuel` | ECA and EU-to-EU tests and hourly fuel assignment | 3.5 |
+| `emissions` | Operating modes, engine power demand, fuel consumption, and CO₂ | 3.4, 3.5 |
+| `allocation` | International-voyage share and allocation to countries | 3.6 |
+| `baselines` | Global Carbon Budget national baselines | 3.7 |
+| `impacts` | Absolute and percentage additions to national carbon budgets | 3.7 |
+| `validate` | Identity, coverage, leg-speed, mode, specification, and smoothing checks | 4 |
+
+GFW permits one concurrent 4Wings report, so presence requests run one at a
+time. Keep warnings from `validate` in the report; do not change parameters
+after seeing results only to suppress them.
+
+### Scenarios
+
+Every result carries a scenario ID built from the cross join of the power
+estimates in `run.power_estimates` and the odd, centred speed-smoothing windows
+in `run.smoothing_windows` (both in `config/pilot.yaml`). Report the spread
+across scenarios rather than choosing a single estimate or window.
+
+### Adding a vessel
+
+All vessel-specific data are configuration, not code:
+
+| File | Contents |
+|---|---|
+| `config/pilot.yaml` | Dates, IMO list, exact GFW ship names, scenario axes, coverage and gap thresholds, paths, spatial layers, territory alignment |
+| `config/vessel_specs.yaml` | Physical specifications, engine class, allocation-country keys, and the provenance of each parameter |
+| `config/eexi_parameters.yaml` | MEPC.333(76) reference-speed and installed-power curves (paper Table C1) |
+| `config/emission_factors.yaml` | Fourth IMO GHG Study mode, auxiliary, SFC, and CO₂-factor tables (paper Tables C5–C9) |
+
+To add a ship, put its checksum-valid IMO number and every exact historical GFW
+ship name in `pilot.yaml`, and its specification and allocation-key block in
+`vessel_specs.yaml`. Each sourced or estimated parameter must record its value,
+source, and method. The loader rejects invalid IMO numbers, missing names or
+country keys, unknown EEXI categories, and even smoothing windows.
+
+To search for an additional contrast vessel:
+
+```powershell
+python scripts/run_pipeline.py --stage select --shortlist 18
+```
+
+The selector samples GFW cargo vessels under six open registries (PAN, LBR,
+MHL, MLT, BHS, CYP). It keeps candidates with a valid IMO number, a unique exact
+name, observations in each sampled year, and calls in at least three countries
+including an EU port. Confirming that the owner country differs from the flag
+has to be done by hand in Equasis.
+
+### Notebooks
+
+After a successful run, re-execute the walkthrough notebook:
+
+```powershell
+python -m nbconvert --to notebook --execute --inplace notebooks/01_methodology_walkthrough.ipynb
+```
 
 ## Data
 
@@ -151,8 +221,9 @@ smoothing windows. It then constructs port-to-port voyage legs, joins spatial
 context, assigns fuel and operating modes, and calculates emissions for every
 configured specification and smoothing scenario.
 
-See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for formulas, assumptions,
-validation rules, and the treatment of coverage correction.
+See Section 3 and Appendix B of the
+[final paper](docs/FinalPaper_ArantzazuArreguiGonzalez.pdf) for formulas,
+assumptions, validation rules, and the treatment of coverage correction.
 
 ### Engine specification estimates
 
@@ -202,8 +273,7 @@ speed, so the pipeline carries several estimates instead of choosing one:
 │   ├── out/                     Derived outputs
 │   └── sample/api/              Tracked captured API responses
 ├── docs/                        Project documentation and paper
-│   ├── METHODOLOGY.md           Operational pipeline guide, assumptions, and formulas
-│   ├── data_sources.md          Source provenance, substitutions, and handling requirements
+│   ├── data_sources.md          Source provenance, required downloads, substitutions, and handling
 │   ├── data_requirements.md     Input-data requirements and initial data audit
 │   └── FinalPaper_ArantzazuArreguiGonzalez.pdf  Final project paper
 ├── notebooks/                   Executable analysis walkthroughs

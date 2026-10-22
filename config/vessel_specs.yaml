@@ -8,7 +8,7 @@
 # `estimated: true` means the number was derived or assigned, not observed. It is
 # surfaced in every notebook table so a reader is never unsure which is which.
 #
-# THE CENTRAL DATA CONSTRAINT (docs/METHODOLOGY.md §2): no free source supplies
+# THE CENTRAL DATA CONSTRAINT (final paper, Sections 3.3 and 4.2): no free source supplies
 # installed power or design speed. The IMO Fourth GHG Study's own fallback
 # regressions (equations 3 and 4) publish only symbolic coefficients and are
 # mutually circular -- speed needs power, power needs speed. Three independent
@@ -123,7 +123,7 @@ defaults:
           estimated: true
         block_coefficient:
           value: 0.61
-          source: "docs/METHODOLOGY.md §2.2"
+          source: "Charchalis (2014), assigned for container hulls; final paper Tables 4 and C3"
           method: assigned
           estimated: true
         dwt_to_displacement_ratio:
@@ -240,7 +240,7 @@ vessels:
     # is corroborated by Cepowski & Chorab's DWT relation (344.4 m predicted).
     lbp_m:
       value: 345.0
-      source: "docs/METHODOLOGY.md §2.2"
+      source: "final paper Table C3"
       method: "LBP ~ 0.95 * LOA, corroborated by Cepowski & Chorab DWT relation (344.4 m)"
       estimated: true
 

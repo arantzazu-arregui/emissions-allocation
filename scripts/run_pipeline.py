@@ -1,6 +1,7 @@
 """Ordered, resumable entry point for the emissions-allocation pipeline.
 
-Stages follow ``docs/METHODOLOGY.md`` §0 to §8. Each is independently runnable, and
+Stages §0 to §8 follow Section 3 of the final paper (stage §N is paper Section 3.N;
+see ``emissions_allocation/__init__.py`` and the README). Each is independently runnable, and
 API responses are cached under ``data/raw/`` so a rerun costs nothing and a partial
 run picks up where it stopped.
 

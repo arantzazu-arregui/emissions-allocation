@@ -25,6 +25,34 @@ coverage or precision as an explicit limitation.
 | National carbon-budget baseline | Global Carbon Budget 2018 | Global Carbon Budget 2025 | Edition changes must be stated when comparing results. |
 | Territory alignment | Selin et al. supplementary Table 1 | Selin et al. supplementary Table 1 | A fixed replication convention, not an independently estimated geography. |
 
+## Required downloads
+
+Download these inputs into `data/external/` before running the spatial,
+baseline, or allocation stages. Keep the filenames shown: they are the paths
+configured in `config/pilot.yaml`. Treat the directory as read-only.
+
+| Destination and required filename | Download | Purpose |
+|---|---|---|
+| `marineregions/World_EEZ_v12_20231025_gpkg.zip` | [Marine Regions downloads: World EEZ v12, GeoPackage](https://www.marineregions.org/downloads.php) | EEZ point-in-polygon join. Select **GeoPackage** for World EEZ v12 (2023-10-25). |
+| `marineregions/World_High_Seas_v2_20241010_gpkg.zip` | [Marine Regions downloads: World High Seas v2, GeoPackage](https://www.marineregions.org/downloads.php) | High-seas reference layer. Select **GeoPackage** for World High Seas v2 (2024-10-10). |
+| `marineregions/eca_reg14_sox_pm.zip` | [Marine Regions ECA Regulation 14 dataset](https://doi.org/10.14284/397) | MARPOL Annex VI Regulation 14 ECA fuel assignment. Download the shapefile archive. |
+| `marineregions/EEZ_land_union_v4_202410.zip` | [Marine Regions Marine and Land Zones v4 dataset](https://doi.org/10.14284/698) | Coast-distance proxy. Download the `EEZ_land_union_v4_202410.zip` archive. |
+| `gcb/National_Fossil_Carbon_Emissions_2025_v0.3.xlsx` | [Global Carbon Budget 2025: National fossil carbon emissions](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Territorial-emissions baseline. The live download may be a newer revision; use the configured v0.3 file for a reproducible rerun, or update the configuration and this record together. |
+| `gcb/Global_Carbon_Budget_2025_v0.6.xlsx` | [Global Carbon Budget 2025: full workbook](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Companion workbook retained with the baseline release. |
+| `gcb/Global-Carbon-Budget-v2025-Dataset-Descriptions.pdf` | [Global Carbon Budget 2025: dataset descriptions](https://globalcarbonbudget.org/datahub/the-latest-gcb-data-2025/) | Metadata for the two GCB workbooks. |
+| `imo/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf` | [Fourth IMO GHG Study 2020: full report and annexes (PDF)](https://greenvoyage2050.imo.org/wp-content/uploads/2021/07/Fourth-IMO-GHG-Study-2020-Full-report-and-annexes_compressed.pdf) | Source report for the emission-factor configuration. |
+
+Optional, not used by the two-vessel run:
+
+| Destination | Download | Use |
+|---|---|---|
+| `undata/UNdata_Export_*_FuelOil.zip` and `undata/UNdata_Export_*_GasOil.zip` | [UNdata Energy Statistics database](https://data.un.org/) | Inputs for the future fleet-scale bunker-fuel allocation option only. |
+| `paper/erlabec02supp2.xls` | Selin et al. (2021) supplementary data | Source of the territory-alignment convention (see below). |
+
+Vessel-specific Equasis and public-register records are not distributed as a
+bulk download. Retrieve them manually from [Equasis](https://www.equasis.org/)
+and record each value and its provenance in `config/vessel_specs.yaml`.
+
 ## Active inputs
 
 ### Global Fishing Watch — activity, identity, and port visits

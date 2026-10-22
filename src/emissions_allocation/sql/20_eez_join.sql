@@ -9,7 +9,7 @@
 -- polygons, and a null country would silently drop hours from the domestic test.
 --
 -- POL_TYPE splits 229 '200NM' / 21 'Joint regime' / 35 'Overlapping claim'.
--- METHODOLOGY Section 2 sets the default: assign to ISO_SOV1 and report the affected
+-- Paper Section 3.2 sets the default: assign to ISO_SOV1 and report the affected
 -- hours separately, which is what `is_disputed` below is for. The rule is not
 -- finally settled -- Selin et al.'s supplementary Table 1 turns out to carry no
 -- territory breakdown that would resolve it, only 199 sovereign parties.

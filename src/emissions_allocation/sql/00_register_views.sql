@@ -1,4 +1,5 @@
--- Scenario table: the sensitivity cross join configured in METHODOLOGY Section 0.2.
+-- Scenario table: the sensitivity cross join of power estimates (paper Section 3.3)
+-- and smoothing windows (paper Section 3.1), configured in config/pilot.yaml.
 --
 -- Every downstream table is scenario-keyed, so the power/speed estimates and the
 -- smoothing-window range propagate through the model without any stage needing to

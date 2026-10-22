@@ -31,7 +31,7 @@
 -- ONE DOCUMENTED DEPARTURE FROM TABLE 16, at the At berth / Anchored split.
 --
 -- The source separates the two by distance to port because it had no better
--- signal, and METHODOLOGY Section 4 records the departure explicitly. We do have a better
+-- signal, and paper Section 3.4 records the departure explicitly. We do have a better
 -- signal: a GFW port-visit event asserts, from a different endpoint and with a
 -- confidence score, that the vessel was in port between two timestamps.
 --
